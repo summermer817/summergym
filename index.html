@@ -1,0 +1,1123 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="theme-color" content="#F2F2F7">
+  <title>Summer's Gym</title>
+  <link rel="manifest" href="manifest.json">
+  <link rel="apple-touch-icon" href="icon-192.png">
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+
+  <!-- Firebase SDK -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+
+  <!-- React -->
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    body {
+      font-family: -apple-system, 'SF Pro Display', 'SF Pro Text', 'Noto Sans TC', 'Helvetica Neue', sans-serif;
+      background: #F2F2F7; color: #1C1C1E;
+      -webkit-font-smoothing: antialiased;
+    }
+    input, button, textarea, select { font-family: inherit; }
+    input[type="number"]::-webkit-inner-spin-button,
+    input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+    input[type="number"] { -moz-appearance: textfield; }
+    ::-webkit-scrollbar { display: none; }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script>
+    // ═══════════════════════════════════════
+    //  Firebase Configuration
+    //  ⚠️ 請替換為你自己的 Firebase 設定
+    // ═══════════════════════════════════════
+    const firebaseConfig = {
+      apiKey: "AIzaSyAxfeg6g1h-ui3Vtcv2IztUiAH2F6XbW1s",
+      authDomain: "summergym2025.firebaseapp.com",
+      projectId: "summergym2025",
+      storageBucket: "summergym2025.firebasestorage.app",
+      messagingSenderId: "147478843324",
+      appId: "1:147478843324:web:699cce026223e3fa6a25b9"
+    };
+
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.firestore();
+
+    // Firestore helpers exposed to React
+    window.DB = {
+      // ─── Workout Logs ───
+      async getLogs() {
+        const snap = await db.collection("gym_logs").orderBy("date", "desc").get();
+        return snap.docs.map(d => ({ _id: d.id, ...d.data() }));
+      },
+      async addLog(log) {
+        const ref = await db.collection("gym_logs").add(log);
+        return { _id: ref.id, ...log };
+      },
+      async updateLog(id, log) {
+        await db.collection("gym_logs").doc(id).set(log, { merge: true });
+      },
+      async deleteLog(id) {
+        await db.collection("gym_logs").doc(id).delete();
+      },
+      // ─── Custom Settings ───
+      async getCustom() {
+        const doc = await db.collection("gym_settings").doc("custom").get();
+        return doc.exists ? doc.data() : null;
+      },
+      async saveCustom(data) {
+        await db.collection("gym_settings").doc("custom").set(data);
+      }
+    };
+  </script>
+
+  <script type="text/babel" data-type="module">
+    const { useState, useEffect, useMemo, useCallback } = React;
+
+    /* ══════════════════════════════════════════
+       Summer's Gym — iOS-inspired Workout Tracker
+       Firebase Firestore Backend
+       ══════════════════════════════════════════ */
+
+    const T = {
+      bg: "#F2F2F7", white: "#FFFFFF", card: "#FFFFFF",
+      text: "#1C1C1E", text2: "#3C3C43", text3: "#8E8E93", text4: "#AEAEB2",
+      sep: "#E5E5EA", sepLight: "#F0F0F5",
+      accent: "#FF6B2C", accentLight: "#FFF0E8",
+      blue: "#007AFF", blueLight: "#E8F2FF",
+      green: "#34C759", greenLight: "#E5F9EC",
+      purple: "#AF52DE", purpleLight: "#F3E8FA",
+      pink: "#FF2D55", pinkLight: "#FFE5EB",
+      teal: "#5AC8FA", tealLight: "#E5F6FE",
+      yellow: "#FFCC00", yellowLight: "#FFF8E0",
+      orange: "#FF9500", orangeLight: "#FFF2E0",
+      indigo: "#5856D6", indigoLight: "#EEEEFF",
+      radius: 16, radiusSm: 12,
+      shadow: "0 2px 16px rgba(0,0,0,0.06)",
+      shadowSm: "0 1px 6px rgba(0,0,0,0.04)",
+      font: `-apple-system, 'SF Pro Display', 'SF Pro Text', 'Noto Sans TC', 'Helvetica Neue', sans-serif`,
+    };
+
+    const MUSCLE_GROUPS = {
+      "臀腿": {
+        color: T.accent, light: T.accentLight, icon: "🦵",
+        exercises: [
+          { name: "坐姿夾腿", icon: "🦵" }, { name: "坐姿腿屈伸", icon: "🦿" },
+          { name: "槓鈴深蹲", icon: "🏋️" }, { name: "槓鈴RDL", icon: "💪" },
+          { name: "壺鈴保加", icon: "🔔" }, { name: "羅馬椅", icon: "🪑" },
+          { name: "臀推", icon: "🍑" },
+        ],
+      },
+      "背": {
+        color: T.blue, light: T.blueLight, icon: "🔙",
+        exercises: [
+          { name: "槓鈴划船", icon: "🚣" }, { name: "滑輪下拉", icon: "⬇️" },
+          { name: "坐姿划船1", icon: "1️⃣" }, { name: "坐姿划船2", icon: "2️⃣" },
+          { name: "直臂下壓", icon: "🫸" }, { name: "引體向上", icon: "⬆️" },
+        ],
+      },
+      "胸": {
+        color: T.green, light: T.greenLight, icon: "💚",
+        exercises: [
+          { name: "槓鈴臥推", icon: "🛏️" }, { name: "啞鈴上胸/器械上胸", icon: "🔼" },
+          { name: "器械下胸", icon: "🔽" }, { name: "器械平胸", icon: "➡️" },
+          { name: "Cable夾胸/蝴蝶", icon: "🦋" }, { name: "三頭下壓", icon: "💪" },
+        ],
+      },
+      "肩": {
+        color: T.purple, light: T.purpleLight, icon: "🤷",
+        exercises: [
+          { name: "槓鈴肩推", icon: "🔝" }, { name: "坐姿啞鈴飛鳥", icon: "🐦" },
+          { name: "cable後飛鳥", icon: "🦅" }, { name: "cable臉拉", icon: "😤" },
+          { name: "啞鈴邪教", icon: "🙏" },
+        ],
+      },
+    };
+
+    const LOCATIONS = {
+      "健身工廠": ["土城廠", "板橋廠", "中山北廠"],
+      "單次健身房": ["BYF", "morefit", "專心練"],
+    };
+    const PARTNERS = ["自主", "與大皮", "團練", "教練課"];
+    const CARDIO_TYPES = ["跑步", "健走", "團課"];
+
+    const lbToKg = (lb) => (lb * 0.453592).toFixed(1);
+    const kgToLb = (kg) => (kg / 0.453592).toFixed(1);
+
+    // ─── Components ───
+
+    const Pill = ({ label, active, color = T.accent, onClick }) => (
+      <button onClick={onClick} style={{
+        padding: "7px 15px", borderRadius: 20,
+        background: active ? color : T.white,
+        color: active ? "#fff" : T.text2,
+        border: active ? "none" : `1px solid ${T.sep}`,
+        fontSize: 13, fontWeight: active ? 600 : 400,
+        fontFamily: T.font, cursor: "pointer",
+        boxShadow: active ? `0 2px 10px ${color}40` : T.shadowSm,
+        transition: "all 0.25s cubic-bezier(.4,0,.2,1)",
+        whiteSpace: "nowrap",
+      }}>{label}</button>
+    );
+
+    const Card = ({ children, style = {}, onClick }) => (
+      <div onClick={onClick} style={{
+        background: T.card, borderRadius: T.radius, padding: 16,
+        boxShadow: T.shadow, transition: "all 0.2s",
+        cursor: onClick ? "pointer" : "default", ...style,
+      }}>{children}</div>
+    );
+
+    const SectionLabel = ({ children }) => (
+      <div style={{
+        fontSize: 13, fontWeight: 600, color: T.text3,
+        textTransform: "uppercase", letterSpacing: 0.5,
+        marginBottom: 10, marginTop: 4,
+      }}>{children}</div>
+    );
+
+    const Input = ({ style = {}, ...props }) => (
+      <input {...props} style={{
+        padding: "11px 14px", borderRadius: T.radiusSm,
+        border: `1.5px solid ${T.sep}`, background: T.white,
+        color: T.text, fontSize: 14, fontFamily: T.font,
+        outline: "none", transition: "border-color 0.2s",
+        boxSizing: "border-box", width: "100%", ...style,
+      }}
+        onFocus={e => e.target.style.borderColor = T.accent}
+        onBlur={e => e.target.style.borderColor = T.sep}
+      />
+    );
+
+    // ─── Exercise Card ───
+    function ExerciseCard({ exercise, data, onUpdate, groupColor }) {
+      const [unit, setUnit] = useState(data?.unit || "kg");
+      const sets = data?.sets || [];
+      const updateSets = (s) => onUpdate({ ...data, sets: s, unit });
+      const addSet = () => {
+        const last = sets[sets.length - 1];
+        updateSets([...sets, { weight: last?.weight || "", reps: last?.reps || "" }]);
+      };
+      useEffect(() => { if (data) onUpdate({ ...data, unit }); }, [unit]);
+
+      const vol = sets.reduce((s, set) => {
+        const w = parseFloat(set.weight) || 0;
+        const r = parseInt(set.reps) || 0;
+        return s + (unit === "lb" ? w * 0.453592 : w) * r;
+      }, 0);
+
+      return (
+        <div style={{
+          background: sets.length > 0 ? `${groupColor}08` : T.white,
+          borderRadius: T.radiusSm, padding: "12px 14px",
+          border: `1.5px solid ${sets.length > 0 ? groupColor + "30" : T.sep}`,
+          transition: "all 0.25s",
+        }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: sets.length > 0 ? 10 : 0 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <span style={{
+                width: 30, height: 30, borderRadius: 8, display: "flex",
+                alignItems: "center", justifyContent: "center", fontSize: 15,
+                background: `${groupColor}15`,
+              }}>{exercise.icon}</span>
+              <span style={{ fontSize: 14, fontWeight: 500, color: T.text }}>{exercise.name}</span>
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              {vol > 0 && <span style={{ fontSize: 11, color: T.text3, fontWeight: 500 }}>{vol.toFixed(0)}kg</span>}
+              <button onClick={() => setUnit(u => u === "kg" ? "lb" : "kg")} style={{
+                padding: "3px 8px", borderRadius: 6, fontSize: 10, fontWeight: 700,
+                border: `1.5px solid ${groupColor}40`, background: "transparent",
+                color: groupColor, cursor: "pointer", fontFamily: T.font,
+              }}>{unit.toUpperCase()}</button>
+              {sets.length === 0 && (
+                <button onClick={addSet} style={{
+                  padding: "3px 10px", borderRadius: 6, fontSize: 12,
+                  border: "none", background: groupColor, color: "#fff",
+                  cursor: "pointer", fontFamily: T.font, fontWeight: 600,
+                }}>+</button>
+              )}
+            </div>
+          </div>
+          {sets.map((set, i) => (
+            <div key={i} style={{ display: "flex", gap: 6, alignItems: "center", marginBottom: 6 }}>
+              <span style={{
+                width: 22, height: 22, borderRadius: 11, background: `${groupColor}18`,
+                display: "flex", alignItems: "center", justifyContent: "center",
+                fontSize: 10, fontWeight: 700, color: groupColor, flexShrink: 0,
+              }}>{i + 1}</span>
+              <input type="number" placeholder="重量" value={set.weight || ""}
+                onChange={e => { const n = [...sets]; n[i] = { ...set, weight: e.target.value }; updateSets(n); }}
+                style={{
+                  width: 64, padding: "6px 8px", borderRadius: 8, textAlign: "center",
+                  border: `1.5px solid ${T.sep}`, background: T.white, color: T.text,
+                  fontSize: 13, fontFamily: T.font, outline: "none",
+                }} />
+              <span style={{ fontSize: 11, color: T.text4 }}>{unit}</span>
+              <span style={{ color: T.text4, fontSize: 13 }}>×</span>
+              <input type="number" placeholder="次" value={set.reps || ""}
+                onChange={e => { const n = [...sets]; n[i] = { ...set, reps: e.target.value }; updateSets(n); }}
+                style={{
+                  width: 50, padding: "6px 8px", borderRadius: 8, textAlign: "center",
+                  border: `1.5px solid ${T.sep}`, background: T.white, color: T.text,
+                  fontSize: 13, fontFamily: T.font, outline: "none",
+                }} />
+              <span style={{ fontSize: 11, color: T.text4 }}>下</span>
+              {set.weight && (
+                <span style={{ fontSize: 10, color: T.text4, marginLeft: "auto" }}>
+                  ≈{unit === "lb" ? `${lbToKg(set.weight)}kg` : `${kgToLb(set.weight)}lb`}
+                </span>
+              )}
+              <button onClick={() => updateSets(sets.filter((_, j) => j !== i))} style={{
+                width: 20, height: 20, borderRadius: 10, border: "none",
+                background: `${T.pink}15`, color: T.pink, fontSize: 11,
+                cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
+              }}>✕</button>
+            </div>
+          ))}
+          {sets.length > 0 && (
+            <button onClick={addSet} style={{
+              width: "100%", padding: "6px", borderRadius: 8, marginTop: 4,
+              border: `1.5px dashed ${groupColor}40`, background: "transparent",
+              color: groupColor, fontSize: 12, cursor: "pointer", fontFamily: T.font, fontWeight: 500,
+            }}>+ 新增一組</button>
+          )}
+        </div>
+      );
+    }
+
+    // ─── Calendar ───
+    function CalendarView({ logs, onSelectDate, selectedDate, allMuscleGroups }) {
+      const [viewDate, setViewDate] = useState(new Date());
+      const year = viewDate.getFullYear();
+      const month = viewDate.getMonth();
+      const firstDay = new Date(year, month, 1).getDay();
+      const daysInMonth = new Date(year, month + 1, 0).getDate();
+      const prevDays = new Date(year, month, 0).getDate();
+
+      const logsByDate = useMemo(() => {
+        const m = {};
+        logs.forEach(l => { if (!m[l.date]) m[l.date] = []; m[l.date].push(l); });
+        return m;
+      }, [logs]);
+
+      const cells = [];
+      for (let i = firstDay - 1; i >= 0; i--) cells.push({ day: prevDays - i, outside: true });
+      for (let d = 1; d <= daysInMonth; d++) {
+        const ds = `${year}-${String(month + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+        cells.push({ day: d, dateStr: ds, logs: logsByDate[ds] || [], today: ds === new Date().toISOString().slice(0, 10) });
+      }
+      const rem = 7 - (cells.length % 7);
+      if (rem < 7) for (let i = 1; i <= rem; i++) cells.push({ day: i, outside: true });
+
+      return (
+        <Card style={{ padding: "16px 12px" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14, padding: "0 4px" }}>
+            <button onClick={() => setViewDate(new Date(year, month - 1, 1))} style={{
+              width: 34, height: 34, borderRadius: 17, border: "none",
+              background: T.bg, cursor: "pointer", fontSize: 18, color: T.text2,
+              display: "flex", alignItems: "center", justifyContent: "center",
+            }}>‹</button>
+            <span style={{ fontSize: 17, fontWeight: 700, color: T.text }}>{year}年{month + 1}月</span>
+            <button onClick={() => setViewDate(new Date(year, month + 1, 1))} style={{
+              width: 34, height: 34, borderRadius: 17, border: "none",
+              background: T.bg, cursor: "pointer", fontSize: 18, color: T.text2,
+              display: "flex", alignItems: "center", justifyContent: "center",
+            }}>›</button>
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(7,1fr)", gap: 2, marginBottom: 4 }}>
+            {["日","一","二","三","四","五","六"].map(w => (
+              <div key={w} style={{ textAlign: "center", fontSize: 11, fontWeight: 600, color: T.text4, padding: "4px 0" }}>{w}</div>
+            ))}
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(7,1fr)", gap: 2 }}>
+            {cells.map((c, i) => {
+              const sel = c.dateStr === selectedDate;
+              const has = c.logs?.length > 0;
+              return (
+                <div key={i} onClick={() => c.dateStr && onSelectDate(c.dateStr)} style={{
+                  aspectRatio: "1", borderRadius: 12,
+                  display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+                  cursor: c.outside ? "default" : "pointer",
+                  background: sel ? T.accent : c.today ? T.accentLight : "transparent",
+                  transition: "all 0.2s", position: "relative",
+                  opacity: c.outside ? 0.25 : 1,
+                }}>
+                  <span style={{
+                    fontSize: 13, fontWeight: c.today || sel ? 700 : 400,
+                    color: sel ? "#fff" : c.today ? T.accent : T.text,
+                  }}>{c.day}</span>
+                  {has && (
+                    <div style={{ display: "flex", gap: 1, position: "absolute", bottom: 3 }}>
+                      {c.logs.slice(0, 3).map((log, j) => {
+                        const mg = allMuscleGroups[log.muscleGroup];
+                        const isC = log.trainingType === "有氧";
+                        const isR = log.trainingType === "休息日";
+                        return (
+                          <div key={j} style={{
+                            width: sel ? 7 : 6, height: sel ? 7 : 6, borderRadius: 4,
+                            background: sel ? "#fff" : isR ? T.teal : isC ? T.yellow : mg?.color || T.teal,
+                          }} />
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+          <div style={{
+            display: "flex", flexWrap: "wrap", gap: 10, marginTop: 14,
+            padding: "10px 4px 0", borderTop: `1px solid ${T.sepLight}`,
+          }}>
+            {Object.entries(allMuscleGroups).map(([name, g]) => (
+              <div key={name} style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                <div style={{ width: 8, height: 8, borderRadius: 4, background: g.color }} />
+                <span style={{ fontSize: 11, color: T.text3 }}>{g.icon} {name}</span>
+              </div>
+            ))}
+            <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+              <div style={{ width: 8, height: 8, borderRadius: 4, background: T.yellow }} />
+              <span style={{ fontSize: 11, color: T.text3 }}>🏃 有氧</span>
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+              <div style={{ width: 8, height: 8, borderRadius: 4, background: T.teal }} />
+              <span style={{ fontSize: 11, color: T.text3 }}>😴 休息日</span>
+            </div>
+          </div>
+        </Card>
+      );
+    }
+
+    // ─── Stat Ring ───
+    function StatRing({ value, max, label, sub, color, size = 72 }) {
+      const r = (size - 10) / 2;
+      const circ = 2 * Math.PI * r;
+      const pct = Math.min(value / Math.max(max, 1), 1);
+      return (
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
+          <div style={{ position: "relative", width: size, height: size }}>
+            <svg width={size} height={size} style={{ transform: "rotate(-90deg)" }}>
+              <circle cx={size/2} cy={size/2} r={r} fill="none" stroke={`${color}18`} strokeWidth={5} />
+              <circle cx={size/2} cy={size/2} r={r} fill="none" stroke={color} strokeWidth={5}
+                strokeDasharray={circ} strokeDashoffset={circ * (1 - pct)}
+                strokeLinecap="round" style={{ transition: "stroke-dashoffset 0.8s cubic-bezier(.4,0,.2,1)" }} />
+            </svg>
+            <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
+              <span style={{ fontSize: 18, fontWeight: 800, color: T.text, lineHeight: 1 }}>{value}</span>
+              <span style={{ fontSize: 9, color: T.text3, marginTop: 1 }}>{sub}</span>
+            </div>
+          </div>
+          <span style={{ fontSize: 11, color: T.text3, fontWeight: 500 }}>{label}</span>
+        </div>
+      );
+    }
+
+    // ═══════════════════════════════════════
+    //  MAIN APP
+    // ═══════════════════════════════════════
+    function App() {
+      const [view, setView] = useState("home");
+      const [logs, setLogs] = useState([]);
+      const [loading, setLoading] = useState(true);
+      const [custom, setCustom] = useState({
+        locations: { "健身工廠": [], "單次健身房": [] },
+        partners: [], cardioTypes: [], muscleGroups: {},
+      });
+      const [weather, setWeather] = useState({ temp: "--", desc: "載入中", icon: "⏳", hum: "--" });
+      const [editingLog, setEditingLog] = useState(null);
+      const [detailLog, setDetailLog] = useState(null);
+      const [calDate, setCalDate] = useState(new Date().toISOString().slice(0, 10));
+
+      const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
+      const [time, setTime] = useState(new Date().toTimeString().slice(0, 5));
+      const [locCat, setLocCat] = useState("");
+      const [locSub, setLocSub] = useState("");
+      const [customLoc, setCustomLoc] = useState("");
+      const [partner, setPartner] = useState("");
+      const [customPartner, setCustomPartner] = useState("");
+      const [trainType, setTrainType] = useState("");
+      const [muscleGroup, setMuscleGroup] = useState("臀腿");
+      const [exerciseData, setExerciseData] = useState({});
+      const [cardioType, setCardioType] = useState("");
+      const [customCardio, setCustomCardio] = useState("");
+      const [cardioDuration, setCardioDuration] = useState("");
+      const [cardioCalories, setCardioCalories] = useState("");
+      const [notes, setNotes] = useState("");
+      const [restActivities, setRestActivities] = useState([]);
+      const [restCondition, setRestCondition] = useState("");
+      const [showAddGroup, setShowAddGroup] = useState(false);
+      const [newGroupName, setNewGroupName] = useState("");
+      const [newGroupIcon, setNewGroupIcon] = useState("⭐");
+      const [newGroupExercises, setNewGroupExercises] = useState("");
+      const [saving, setSaving] = useState(false);
+
+      // ─── Load data from Firebase ───
+      useEffect(() => {
+        (async () => {
+          try {
+            const [logsData, customData] = await Promise.all([
+              window.DB.getLogs(),
+              window.DB.getCustom(),
+            ]);
+            setLogs(logsData || []);
+            if (customData) setCustom(customData);
+          } catch (err) {
+            console.error("Firebase load error:", err);
+          }
+          setLoading(false);
+        })();
+        // Fetch weather
+        if (navigator.geolocation) {
+          navigator.geolocation.getCurrentPosition(async (pos) => {
+            try {
+              const { latitude: lat, longitude: lon } = pos.coords;
+              const r = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,relative_humidity_2m,weather_code`);
+              const d = await r.json();
+              const c = d.current;
+              const code = c.weather_code;
+              const desc = code <= 3 ? (code === 0 ? "晴" : "多雲") : code < 60 ? "陰" : code < 70 ? "雨" : "雷雨";
+              const icon = code <= 1 ? "☀️" : code <= 3 ? "⛅" : code < 60 ? "☁️" : code < 70 ? "🌧️" : "⛈️";
+              setWeather({ temp: Math.round(c.temperature_2m), desc, icon, hum: c.relative_humidity_2m });
+            } catch { setWeather({ temp: 26, desc: "晴", icon: "☀️", hum: 65 }); }
+          }, () => setWeather({ temp: 26, desc: "晴", icon: "☀️", hum: 65 }));
+        } else {
+          setWeather({ temp: 26, desc: "晴", icon: "☀️", hum: 65 });
+        }
+      }, []);
+
+      const customColors = [T.teal, T.pink, T.indigo, T.orange];
+      const customLights = [T.tealLight, T.pinkLight, T.indigoLight, T.orangeLight];
+
+      const allMuscleGroups = useMemo(() => {
+        const m = { ...MUSCLE_GROUPS };
+        Object.entries(custom.muscleGroups || {}).forEach(([name, g], i) => {
+          m[name] = {
+            color: customColors[i % customColors.length],
+            light: customLights[i % customLights.length],
+            icon: g.icon || "⭐",
+            exercises: (g.exercises || []).map(e => ({ name: e, icon: "🔹" })),
+          };
+        });
+        return m;
+      }, [custom]);
+
+      const allLocations = (cat) => [...(LOCATIONS[cat] || []), ...(custom.locations?.[cat] || [])];
+      const allPartners = [...PARTNERS, ...(custom.partners || [])];
+      const allCardioTypes = [...CARDIO_TYPES, ...(custom.cardioTypes || [])];
+
+      const addCustom = async (type, val) => {
+        if (!val.trim()) return;
+        const c = JSON.parse(JSON.stringify(custom));
+        if (type.startsWith("loc:")) {
+          const cat = type.split(":")[1];
+          if (!c.locations[cat]) c.locations[cat] = [];
+          if (!c.locations[cat].includes(val)) c.locations[cat].push(val);
+        } else if (type === "partner") {
+          if (!c.partners.includes(val)) c.partners.push(val);
+        } else if (type === "cardio") {
+          if (!c.cardioTypes.includes(val)) c.cardioTypes.push(val);
+        }
+        setCustom(c);
+        await window.DB.saveCustom(c);
+      };
+
+      const addMuscleGroup = async () => {
+        if (!newGroupName.trim()) return;
+        const c = JSON.parse(JSON.stringify(custom));
+        if (!c.muscleGroups) c.muscleGroups = {};
+        c.muscleGroups[newGroupName] = {
+          icon: newGroupIcon,
+          exercises: newGroupExercises.split(/[,，、\n]/).map(s => s.trim()).filter(Boolean),
+        };
+        setCustom(c);
+        await window.DB.saveCustom(c);
+        setNewGroupName(""); setNewGroupIcon("⭐"); setNewGroupExercises(""); setShowAddGroup(false);
+      };
+
+      const resetForm = () => {
+        setDate(new Date().toISOString().slice(0, 10));
+        setTime(new Date().toTimeString().slice(0, 5));
+        setLocCat(""); setLocSub(""); setPartner(""); setTrainType("");
+        setMuscleGroup("臀腿"); setExerciseData({});
+        setCardioType(""); setCardioDuration(""); setCardioCalories("");
+        setNotes(""); setCustomLoc(""); setCustomPartner(""); setCustomCardio(""); setEditingLog(null);
+        setRestActivities([]); setRestCondition("");
+      };
+
+      const saveWorkout = async () => {
+        setSaving(true);
+        try {
+          const loc = locSub === "__custom" ? customLoc : `${locCat} · ${locSub}`;
+          const p = partner === "__custom" ? customPartner : partner;
+          const filled = {};
+          Object.entries(exerciseData).forEach(([k, v]) => {
+            if (v.sets?.length > 0 && v.sets.some(s => s.weight || s.reps)) filled[k] = v;
+          });
+          const logData = {
+            date, time, location: loc, partner: p,
+            trainingType: trainType, weather: { ...weather },
+            muscleGroup: trainType === "重訓" ? muscleGroup : null,
+            exercises: trainType === "重訓" ? filled : null,
+            cardio: trainType === "有氧" ? { type: cardioType === "__custom" ? customCardio : cardioType, duration: cardioDuration, calories: cardioCalories } : null,
+            restDay: trainType === "休息日" ? { activities: restActivities, condition: restCondition } : null,
+            notes,
+          };
+
+          if (editingLog) {
+            await window.DB.updateLog(editingLog._id, logData);
+            setLogs(logs.map(l => l._id === editingLog._id ? { _id: editingLog._id, ...logData } : l));
+          } else {
+            const newLog = await window.DB.addLog(logData);
+            setLogs([newLog, ...logs]);
+          }
+          resetForm(); setView("home");
+        } catch (err) {
+          alert("儲存失敗: " + err.message);
+        }
+        setSaving(false);
+      };
+
+      const deleteLog = async (id) => {
+        try {
+          await window.DB.deleteLog(id);
+          const n = logs.filter(l => l._id !== id);
+          setLogs(n);
+          if (detailLog?._id === id) { setDetailLog(null); setView("history"); }
+        } catch (err) { alert("刪除失敗: " + err.message); }
+      };
+
+      const syncCal = (log) => {
+        const isRest = log.trainingType === "休息日";
+        const t = isRest ? `😴 休息日${log.restDay?.condition ? ` ${log.restDay.condition}` : ""}` : `🏋️ ${log.trainingType}${log.muscleGroup ? ` - ${log.muscleGroup}` : ""}`;
+        const s = `${log.date.replace(/-/g, "")}T${log.time.replace(":", "")}00`;
+        const d = isRest ? `休息日\n天氣：${log.weather.icon} ${log.weather.temp}°C` : `地點：${log.location}\n夥伴：${log.partner}\n天氣：${log.weather.icon} ${log.weather.temp}°C`;
+        window.open(`https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(t)}&dates=${s}/${s}&details=${encodeURIComponent(d)}&location=${encodeURIComponent(log.location || "")}`, "_blank");
+      };
+
+      const startEdit = (log) => {
+        setEditingLog(log); setDate(log.date); setTime(log.time);
+        const lp = (log.location || "").split(" · ");
+        if (lp.length === 2) { setLocCat(lp[0]); setLocSub(lp[1]); }
+        setPartner(log.partner || ""); setTrainType(log.trainingType);
+        if (log.muscleGroup) setMuscleGroup(log.muscleGroup);
+        if (log.exercises) setExerciseData(log.exercises);
+        if (log.cardio) { setCardioType(log.cardio.type); setCardioDuration(log.cardio.duration); setCardioCalories(log.cardio.calories); }
+        if (log.restDay) { setRestActivities(log.restDay.activities || []); setRestCondition(log.restDay.condition || ""); }
+        setNotes(log.notes || ""); setView("new");
+      };
+
+      const weekLogs = logs.filter(l => {
+        const d = new Date(l.date); const now = new Date(); now.setHours(23,59,59);
+        const ago = new Date(now); ago.setDate(now.getDate() - 7);
+        return d >= ago && d <= now;
+      });
+      const monthLogs = logs.filter(l => l.date.startsWith(new Date().toISOString().slice(0, 7)));
+      const totalVol = logs.reduce((s, l) => {
+        if (!l.exercises) return s;
+        return s + Object.values(l.exercises).reduce((ss, ex) =>
+          ss + (ex.sets || []).reduce((sss, set) => {
+            const w = parseFloat(set.weight) || 0;
+            const r = parseInt(set.reps) || 0;
+            return sss + (ex.unit === "lb" ? w * 0.453592 : w) * r;
+          }, 0), 0);
+      }, 0);
+
+      const calDateLogs = logs.filter(l => l.date === calDate);
+      const chipRow = { display: "flex", flexWrap: "wrap", gap: 6 };
+
+      const navItems = [
+        { id: "home", icon: "🏠", label: "首頁" },
+        { id: "new", icon: "✏️", label: "紀錄" },
+        { id: "history", icon: "📅", label: "日曆" },
+      ];
+
+      const LogRow = ({ log }) => {
+        const mg = allMuscleGroups[log.muscleGroup];
+        const isCardio = log.trainingType === "有氧";
+        const isRest = log.trainingType === "休息日";
+        return (
+          <Card onClick={() => { setDetailLog(log); setView("detail"); }} style={{ padding: "14px 16px", marginBottom: 8 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+              <div style={{
+                width: 44, height: 44, borderRadius: 14,
+                background: isRest ? T.tealLight : isCardio ? T.yellowLight : (mg?.light || T.tealLight),
+                display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20, flexShrink: 0,
+              }}>{isRest ? "😴" : isCardio ? "🏃" : (mg?.icon || "🏋️")}</div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  <span style={{ fontSize: 15, fontWeight: 600 }}>{log.trainingType}</span>
+                  {log.muscleGroup && (
+                    <span style={{ fontSize: 11, padding: "2px 8px", borderRadius: 6, background: mg?.light || T.tealLight, color: mg?.color || T.teal, fontWeight: 600 }}>{log.muscleGroup}</span>
+                  )}
+                  {log.cardio?.type && (
+                    <span style={{ fontSize: 11, padding: "2px 8px", borderRadius: 6, background: T.yellowLight, color: T.orange, fontWeight: 600 }}>{log.cardio.type}</span>
+                  )}
+                  {isRest && log.restDay?.condition && <span style={{ fontSize: 14 }}>{log.restDay.condition}</span>}
+                </div>
+                <div style={{ fontSize: 12, color: T.text3, marginTop: 3 }}>
+                  {log.date}{!isRest ? ` · ${log.location} · ${log.partner}` : (log.restDay?.activities?.length ? ` · ${log.restDay.activities.join("、")}` : "")}
+                </div>
+              </div>
+              <span style={{ color: T.text4, fontSize: 18 }}>›</span>
+            </div>
+          </Card>
+        );
+      };
+
+      // ─── Loading Screen ───
+      if (loading) return (
+        <div style={{ maxWidth: 430, margin: "0 auto", minHeight: "100vh", background: T.bg, display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 12 }}>
+          <div style={{ fontSize: 48 }}>💪</div>
+          <div style={{ color: T.text3, fontSize: 14 }}>載入中...</div>
+        </div>
+      );
+
+      return (
+        <div style={{ maxWidth: 430, margin: "0 auto", minHeight: "100vh", background: T.bg, fontFamily: T.font, color: T.text }}>
+          <div style={{ paddingBottom: 72 }}>
+
+            {/* ═══ HOME ═══ */}
+            {view === "home" && (
+              <div style={{ padding: "0 16px 16px" }}>
+                <div style={{
+                  margin: "0 -16px", padding: "44px 20px 28px",
+                  background: `linear-gradient(135deg, ${T.accent}, #FF8F55, #FFB088)`,
+                  borderRadius: "0 0 28px 28px", marginBottom: 20, position: "relative", overflow: "hidden",
+                }}>
+                  <div style={{ position: "absolute", top: -30, right: -20, width: 120, height: 120, borderRadius: 60, background: "rgba(255,255,255,0.12)" }} />
+                  <div style={{ position: "absolute", bottom: -20, left: 30, width: 80, height: 80, borderRadius: 40, background: "rgba(255,255,255,0.08)" }} />
+                  <div style={{ position: "relative" }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+                      <div>
+                        <h1 style={{ fontSize: 24, fontWeight: 800, color: "#fff", margin: 0 }}>Summer's Gym</h1>
+                        <p style={{ color: "rgba(255,255,255,0.85)", fontSize: 13, margin: "4px 0 0" }}>
+                          {new Date().toLocaleDateString("zh-TW", { month: "long", day: "numeric", weekday: "long" })}
+                        </p>
+                      </div>
+                      <div style={{ background: "rgba(255,255,255,0.2)", borderRadius: 14, padding: "8px 12px", backdropFilter: "blur(10px)", display: "flex", alignItems: "center", gap: 6 }}>
+                        <span style={{ fontSize: 22 }}>{weather.icon}</span>
+                        <div>
+                          <div style={{ fontSize: 15, fontWeight: 700, color: "#fff" }}>{weather.temp}°C</div>
+                          <div style={{ fontSize: 10, color: "rgba(255,255,255,0.7)" }}>{weather.desc}</div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <Card style={{ marginBottom: 16, padding: "20px 10px" }}>
+                  <div style={{ display: "flex", justifyContent: "space-around" }}>
+                    <StatRing value={weekLogs.length} max={7} label="本週訓練" sub="次" color={T.accent} />
+                    <StatRing value={monthLogs.length} max={30} label="本月訓練" sub="次" color={T.blue} />
+                    <StatRing value={totalVol > 1000 ? Math.round(totalVol / 1000) : Math.round(totalVol)} max={totalVol > 1000 ? Math.round(totalVol / 1000) + 10 : Math.round(totalVol) + 100} label="累積訓練量" sub={totalVol > 1000 ? "噸" : "kg"} color={T.green} />
+                  </div>
+                </Card>
+
+                <button onClick={() => { resetForm(); setView("new"); }} style={{
+                  width: "100%", padding: "16px", borderRadius: T.radius,
+                  border: "none", cursor: "pointer", fontFamily: T.font,
+                  background: `linear-gradient(135deg, ${T.accent}, #FF8F55)`,
+                  color: "#fff", fontSize: 16, fontWeight: 700,
+                  boxShadow: `0 6px 24px ${T.accent}50`, marginBottom: 20,
+                  display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+                }}>
+                  <span style={{ fontSize: 20 }}>💪</span> 開始今日訓練
+                </button>
+
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+                  <span style={{ fontSize: 17, fontWeight: 700 }}>最近紀錄</span>
+                  {logs.length > 3 && (
+                    <button onClick={() => setView("history")} style={{ background: "none", border: "none", color: T.accent, fontSize: 13, cursor: "pointer", fontFamily: T.font, fontWeight: 500 }}>全部 →</button>
+                  )}
+                </div>
+                {logs.length === 0 ? (
+                  <Card style={{ textAlign: "center", padding: 40 }}>
+                    <div style={{ fontSize: 40, marginBottom: 8 }}>🏋️‍♀️</div>
+                    <div style={{ color: T.text3, fontSize: 14 }}>還沒有訓練紀錄</div>
+                    <div style={{ color: T.text4, fontSize: 12, marginTop: 4 }}>開始你的第一次訓練吧！</div>
+                  </Card>
+                ) : logs.slice(0, 5).map(log => <LogRow key={log._id} log={log} />)}
+              </div>
+            )}
+
+            {/* ═══ NEW ═══ */}
+            {view === "new" && (
+              <div style={{ padding: "16px" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 20 }}>
+                  <button onClick={() => { setView("home"); resetForm(); }} style={{ width: 36, height: 36, borderRadius: 12, border: "none", background: T.white, boxShadow: T.shadowSm, cursor: "pointer", fontSize: 18, display: "flex", alignItems: "center", justifyContent: "center" }}>‹</button>
+                  <h2 style={{ fontSize: 20, fontWeight: 700, margin: 0 }}>{editingLog ? "編輯紀錄" : "新增訓練"}</h2>
+                </div>
+
+                <SectionLabel>📅 日期與時間</SectionLabel>
+                <Card style={{ marginBottom: 16, padding: 14 }}>
+                  <div style={{ display: "flex", gap: 10, marginBottom: 8 }}>
+                    <Input type="date" value={date} onChange={e => setDate(e.target.value)} style={{ flex: 1 }} />
+                    <Input type="time" value={time} onChange={e => setTime(e.target.value)} style={{ width: 120 }} />
+                  </div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: T.text3 }}>
+                    {weather.icon} {weather.temp}°C · {weather.desc} · 濕度{weather.hum}%
+                    <span style={{ color: T.green, fontSize: 10, fontWeight: 600 }}>自動帶入</span>
+                  </div>
+                </Card>
+
+                <SectionLabel>🏋️ 訓練類型</SectionLabel>
+                <Card style={{ marginBottom: 16, padding: 14 }}>
+                  <div style={chipRow}>
+                    <Pill label="💪 重訓" active={trainType === "重訓"} onClick={() => setTrainType("重訓")} color={T.accent} />
+                    <Pill label="🏃 有氧" active={trainType === "有氧"} onClick={() => setTrainType("有氧")} color={T.orange} />
+                    <Pill label="😴 休息日" active={trainType === "休息日"} onClick={() => setTrainType("休息日")} color={T.teal} />
+                  </div>
+                </Card>
+
+                {trainType !== "休息日" && (<>
+                  <SectionLabel>📍 地點</SectionLabel>
+                  <Card style={{ marginBottom: 16, padding: 14 }}>
+                    <div style={chipRow}>
+                      {Object.keys(LOCATIONS).map(cat => <Pill key={cat} label={cat} active={locCat === cat} onClick={() => { setLocCat(cat); setLocSub(""); }} />)}
+                    </div>
+                    {locCat && (
+                      <div style={{ ...chipRow, marginTop: 10 }}>
+                        {allLocations(locCat).map(sub => <Pill key={sub} label={sub} active={locSub === sub} onClick={() => setLocSub(sub)} color={T.blue} />)}
+                        <Pill label="+ 自訂" active={locSub === "__custom"} onClick={() => setLocSub("__custom")} color={T.text3} />
+                      </div>
+                    )}
+                    {locSub === "__custom" && (
+                      <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
+                        <Input placeholder="輸入地點" value={customLoc} onChange={e => setCustomLoc(e.target.value)} />
+                        <button onClick={() => { addCustom(`loc:${locCat}`, customLoc); setLocSub(customLoc); setCustomLoc(""); }} style={{ padding: "0 16px", borderRadius: 10, border: "none", background: T.accent, color: "#fff", fontWeight: 600, cursor: "pointer", fontSize: 13, fontFamily: T.font, whiteSpace: "nowrap" }}>儲存</button>
+                      </div>
+                    )}
+                  </Card>
+
+                  <SectionLabel>👥 訓練夥伴</SectionLabel>
+                  <Card style={{ marginBottom: 16, padding: 14 }}>
+                    <div style={chipRow}>
+                      {allPartners.map(p => <Pill key={p} label={p} active={partner === p} onClick={() => setPartner(p)} color={T.green} />)}
+                      <Pill label="+ 其他" active={partner === "__custom"} onClick={() => setPartner("__custom")} color={T.text3} />
+                    </div>
+                    {partner === "__custom" && (
+                      <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
+                        <Input placeholder="輸入夥伴" value={customPartner} onChange={e => setCustomPartner(e.target.value)} />
+                        <button onClick={() => { addCustom("partner", customPartner); setPartner(customPartner); setCustomPartner(""); }} style={{ padding: "0 16px", borderRadius: 10, border: "none", background: T.green, color: "#fff", fontWeight: 600, cursor: "pointer", fontSize: 13, fontFamily: T.font, whiteSpace: "nowrap" }}>儲存</button>
+                      </div>
+                    )}
+                  </Card>
+                </>)}
+
+                {trainType === "重訓" && (
+                  <>
+                    <SectionLabel>💪 訓練部位</SectionLabel>
+                    <div style={{ display: "flex", gap: 6, marginBottom: 12, overflowX: "auto", paddingBottom: 4 }}>
+                      {Object.entries(allMuscleGroups).map(([name, g]) => (
+                        <button key={name} onClick={() => setMuscleGroup(name)} style={{
+                          padding: "8px 14px", borderRadius: 12, border: "none",
+                          background: muscleGroup === name ? g.color : T.white,
+                          color: muscleGroup === name ? "#fff" : T.text2,
+                          fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: T.font,
+                          boxShadow: muscleGroup === name ? `0 3px 12px ${g.color}40` : T.shadowSm,
+                          transition: "all 0.25s", whiteSpace: "nowrap",
+                          display: "flex", alignItems: "center", gap: 4,
+                        }}>
+                          <span style={{ fontSize: 14 }}>{g.icon}</span> {name}
+                        </button>
+                      ))}
+                      <button onClick={() => setShowAddGroup(true)} style={{
+                        padding: "8px 14px", borderRadius: 12,
+                        border: `2px dashed ${T.sep}`, background: T.white,
+                        color: T.text3, fontSize: 13, fontWeight: 500, cursor: "pointer",
+                        fontFamily: T.font, whiteSpace: "nowrap",
+                      }}>+ 自訂部位</button>
+                    </div>
+
+                    {showAddGroup && (
+                      <Card style={{ marginBottom: 14, padding: 16, border: `2px solid ${T.accent}30` }}>
+                        <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 12, color: T.accent }}>新增自訂部位</div>
+                        <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
+                          <Input placeholder="部位名稱（如：手臂）" value={newGroupName} onChange={e => setNewGroupName(e.target.value)} style={{ flex: 1 }} />
+                          <Input placeholder="🔹" value={newGroupIcon} onChange={e => setNewGroupIcon(e.target.value)} style={{ width: 52, textAlign: "center" }} />
+                        </div>
+                        <textarea placeholder={"輸入動作名稱，用逗號或換行分隔\n例如：二頭彎舉, 三頭下壓, 錘式彎舉"} value={newGroupExercises} onChange={e => setNewGroupExercises(e.target.value)} rows={3} style={{
+                          width: "100%", padding: "10px 12px", borderRadius: 10,
+                          border: `1.5px solid ${T.sep}`, background: T.white,
+                          color: T.text, fontSize: 13, fontFamily: T.font,
+                          resize: "vertical", boxSizing: "border-box", outline: "none",
+                        }} />
+                        <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
+                          <button onClick={addMuscleGroup} style={{ flex: 1, padding: "10px", borderRadius: 10, border: "none", background: T.accent, color: "#fff", fontWeight: 600, cursor: "pointer", fontFamily: T.font, fontSize: 14 }}>確認新增</button>
+                          <button onClick={() => setShowAddGroup(false)} style={{ padding: "10px 16px", borderRadius: 10, border: `1.5px solid ${T.sep}`, background: T.white, color: T.text3, cursor: "pointer", fontFamily: T.font, fontSize: 14 }}>取消</button>
+                        </div>
+                      </Card>
+                    )}
+
+                    <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 16 }}>
+                      {(allMuscleGroups[muscleGroup]?.exercises || []).map(ex => (
+                        <ExerciseCard key={ex.name} exercise={ex} data={exerciseData[ex.name]}
+                          groupColor={allMuscleGroups[muscleGroup]?.color || T.teal}
+                          onUpdate={d => setExerciseData(p => ({ ...p, [ex.name]: d }))} />
+                      ))}
+                    </div>
+                  </>
+                )}
+
+                {trainType === "有氧" && (
+                  <>
+                    <SectionLabel>🏃 有氧訓練</SectionLabel>
+                    <Card style={{ marginBottom: 16, padding: 14 }}>
+                      <div style={chipRow}>
+                        {allCardioTypes.map(t => <Pill key={t} label={t} active={cardioType === t} onClick={() => setCardioType(t)} color={T.orange} />)}
+                        <Pill label="+ 其他" active={cardioType === "__custom"} onClick={() => setCardioType("__custom")} color={T.text3} />
+                      </div>
+                      {cardioType === "__custom" && (
+                        <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
+                          <Input placeholder="輸入有氧類型" value={customCardio} onChange={e => setCustomCardio(e.target.value)} />
+                          <button onClick={() => { addCustom("cardio", customCardio); setCardioType(customCardio); setCustomCardio(""); }} style={{ padding: "0 16px", borderRadius: 10, border: "none", background: T.orange, color: "#fff", fontWeight: 600, cursor: "pointer", fontSize: 13, fontFamily: T.font, whiteSpace: "nowrap" }}>儲存</button>
+                        </div>
+                      )}
+                      <div style={{ display: "flex", gap: 10, marginTop: 14 }}>
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontSize: 11, color: T.text3, marginBottom: 4, fontWeight: 500 }}>⏱️ 時間（分鐘）</div>
+                          <Input type="number" value={cardioDuration} onChange={e => setCardioDuration(e.target.value)} placeholder="30" />
+                        </div>
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontSize: 11, color: T.text3, marginBottom: 4, fontWeight: 500 }}>🔥 消耗卡路里</div>
+                          <Input type="number" value={cardioCalories} onChange={e => setCardioCalories(e.target.value)} placeholder="200" />
+                        </div>
+                      </div>
+                    </Card>
+                  </>
+                )}
+
+                {trainType === "休息日" && (
+                  <>
+                    <SectionLabel>😴 休息日紀錄</SectionLabel>
+                    <Card style={{ marginBottom: 16, padding: 14 }}>
+                      <div style={{ textAlign: "center", padding: "12px 0 16px" }}>
+                        <div style={{ fontSize: 40, marginBottom: 6 }}>🧘‍♀️</div>
+                        <div style={{ fontSize: 15, fontWeight: 600, color: T.text }}>今天好好休息</div>
+                        <div style={{ fontSize: 12, color: T.text3, marginTop: 4 }}>恢復也是訓練的一部分 💤</div>
+                      </div>
+                      <div style={{ fontSize: 12, fontWeight: 600, color: T.text3, marginBottom: 8 }}>休息活動（可多選）</div>
+                      <div style={chipRow}>
+                        {["完全休息", "拉伸放鬆", "散步", "按摩/筋膜放鬆", "瑜珈", "游泳"].map(act => (
+                          <Pill key={act} label={act}
+                            active={(restActivities || []).includes(act)}
+                            onClick={() => setRestActivities(prev => {
+                              const p = prev || [];
+                              return p.includes(act) ? p.filter(a => a !== act) : [...p, act];
+                            })}
+                            color={T.teal} />
+                        ))}
+                      </div>
+                      <div style={{ marginTop: 14 }}>
+                        <div style={{ fontSize: 12, fontWeight: 600, color: T.text3, marginBottom: 8 }}>身體狀態</div>
+                        <div style={{ display: "flex", gap: 6, justifyContent: "center" }}>
+                          {[
+                            { val: "😫", label: "很疲憊" }, { val: "😐", label: "普通" },
+                            { val: "😊", label: "不錯" }, { val: "💪", label: "很好" },
+                            { val: "🔥", label: "滿血復活" },
+                          ].map(s => (
+                            <button key={s.val} onClick={() => setRestCondition(s.val)} style={{
+                              width: 52, padding: "8px 0", borderRadius: 12, border: "none",
+                              background: restCondition === s.val ? T.tealLight : T.bg,
+                              cursor: "pointer", display: "flex", flexDirection: "column",
+                              alignItems: "center", gap: 2, transition: "all 0.2s",
+                              boxShadow: restCondition === s.val ? `0 2px 8px ${T.teal}30` : "none",
+                              outline: restCondition === s.val ? `2px solid ${T.teal}` : "none",
+                            }}>
+                              <span style={{ fontSize: 22 }}>{s.val}</span>
+                              <span style={{ fontSize: 9, color: T.text3, fontFamily: T.font }}>{s.label}</span>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    </Card>
+                  </>
+                )}
+
+                <SectionLabel>📝 備註</SectionLabel>
+                <Card style={{ marginBottom: 20, padding: 14 }}>
+                  <textarea value={notes} onChange={e => setNotes(e.target.value)} placeholder="今天的感受、特別紀錄..." rows={3} style={{
+                    width: "100%", padding: "10px 12px", borderRadius: 10,
+                    border: `1.5px solid ${T.sep}`, background: T.bg,
+                    color: T.text, fontSize: 13, fontFamily: T.font,
+                    resize: "vertical", boxSizing: "border-box", outline: "none",
+                  }} />
+                </Card>
+
+                <button onClick={saveWorkout} disabled={saving} style={{
+                  width: "100%", padding: "16px", borderRadius: T.radius,
+                  border: "none", background: saving ? T.text4 : `linear-gradient(135deg, ${T.accent}, #FF8F55)`,
+                  color: "#fff", fontSize: 16, fontWeight: 700, cursor: saving ? "not-allowed" : "pointer",
+                  fontFamily: T.font, boxShadow: `0 6px 24px ${T.accent}50`, marginBottom: 16,
+                }}>{saving ? "儲存中..." : editingLog ? "✅ 更新紀錄" : "💾 儲存紀錄"}</button>
+              </div>
+            )}
+
+            {/* ═══ HISTORY ═══ */}
+            {view === "history" && (
+              <div style={{ padding: "16px" }}>
+                <h2 style={{ fontSize: 20, fontWeight: 700, margin: "0 0 16px" }}>📅 訓練日曆</h2>
+                <CalendarView logs={logs} selectedDate={calDate} onSelectDate={setCalDate} allMuscleGroups={allMuscleGroups} />
+                <div style={{ marginTop: 16 }}>
+                  <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 8, color: T.text2 }}>
+                    {calDate.replace(/-/g, "/")} 的訓練
+                  </div>
+                  {calDateLogs.length === 0 ? (
+                    <Card style={{ textAlign: "center", padding: 24 }}>
+                      <div style={{ color: T.text4, fontSize: 13 }}>這天沒有訓練紀錄</div>
+                    </Card>
+                  ) : calDateLogs.map(log => <LogRow key={log._id} log={log} />)}
+                </div>
+              </div>
+            )}
+
+            {/* ═══ DETAIL ═══ */}
+            {view === "detail" && detailLog && (() => {
+              const log = detailLog;
+              const mg = allMuscleGroups[log.muscleGroup];
+              const isCardio = log.trainingType === "有氧";
+              const isRest = log.trainingType === "休息日";
+              const logVol = log.exercises ? Object.values(log.exercises).reduce((s, ex) => s + (ex.sets || []).reduce((ss, set) => {
+                const w = parseFloat(set.weight) || 0; const r = parseInt(set.reps) || 0;
+                return ss + (ex.unit === "lb" ? w * 0.453592 : w) * r;
+              }, 0), 0) : 0;
+
+              return (
+                <div style={{ padding: "16px" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 20 }}>
+                    <button onClick={() => setView("history")} style={{ width: 36, height: 36, borderRadius: 12, border: "none", background: T.white, boxShadow: T.shadowSm, cursor: "pointer", fontSize: 18, display: "flex", alignItems: "center", justifyContent: "center" }}>‹</button>
+                    <h2 style={{ fontSize: 20, fontWeight: 700, margin: 0 }}>訓練詳情</h2>
+                  </div>
+
+                  <Card style={{
+                    marginBottom: 16, padding: 20,
+                    background: `linear-gradient(135deg, ${isRest ? T.teal : isCardio ? T.yellow : (mg?.color || T.teal)}12, ${T.white})`,
+                    border: `1.5px solid ${isRest ? T.teal : isCardio ? T.yellow : (mg?.color || T.teal)}25`,
+                  }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 14 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                        <span style={{ fontSize: 28 }}>{isRest ? "😴" : isCardio ? "🏃" : (mg?.icon || "🏋️")}</span>
+                        <div>
+                          <div style={{ fontSize: 20, fontWeight: 800 }}>{log.trainingType}{log.muscleGroup ? ` · ${log.muscleGroup}` : ""}</div>
+                          <div style={{ fontSize: 13, color: T.text3, marginTop: 2 }}>{log.date} {log.time}</div>
+                        </div>
+                      </div>
+                      <div style={{ textAlign: "right" }}>
+                        <div style={{ fontSize: 28 }}>{log.weather?.icon}</div>
+                        <div style={{ fontSize: 12, color: T.text3 }}>{log.weather?.temp}°C</div>
+                      </div>
+                    </div>
+                    <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                      {!isRest && log.location && <span style={{ padding: "5px 12px", borderRadius: 8, fontSize: 12, background: T.blueLight, color: T.blue, fontWeight: 500 }}>📍 {log.location}</span>}
+                      {!isRest && log.partner && <span style={{ padding: "5px 12px", borderRadius: 8, fontSize: 12, background: T.greenLight, color: T.green, fontWeight: 500 }}>👥 {log.partner}</span>}
+                      {logVol > 0 && <span style={{ padding: "5px 12px", borderRadius: 8, fontSize: 12, background: T.purpleLight, color: T.purple, fontWeight: 500 }}>📊 {logVol.toFixed(0)} kg</span>}
+                    </div>
+                  </Card>
+
+                  {log.exercises && Object.keys(log.exercises).length > 0 && (
+                    <>
+                      <SectionLabel>訓練動作</SectionLabel>
+                      {Object.entries(log.exercises).map(([name, data]) => (
+                        <Card key={name} style={{ marginBottom: 8, padding: 14 }}>
+                          <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 8 }}>{name}</div>
+                          {data.sets?.map((set, i) => (
+                            <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4, padding: "4px 8px", borderRadius: 6, background: i % 2 === 0 ? T.bg : "transparent" }}>
+                              <span style={{ width: 20, height: 20, borderRadius: 10, background: `${mg?.color || T.teal}18`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 700, color: mg?.color || T.teal }}>{i + 1}</span>
+                              <span style={{ fontSize: 13, color: T.text }}>{set.weight} {data.unit || "kg"} × {set.reps} 下</span>
+                              {set.weight && <span style={{ fontSize: 11, color: T.text4, marginLeft: "auto" }}>≈ {data.unit === "lb" ? `${lbToKg(set.weight)}kg` : `${kgToLb(set.weight)}lb`}</span>}
+                            </div>
+                          ))}
+                        </Card>
+                      ))}
+                    </>
+                  )}
+
+                  {log.cardio && (
+                    <Card style={{ marginBottom: 16, padding: 14 }}>
+                      <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 8 }}>🏃 {log.cardio.type}</div>
+                      <div style={{ display: "flex", gap: 16 }}>
+                        {log.cardio.duration && <div style={{ flex: 1, padding: 12, borderRadius: 10, background: T.bg, textAlign: "center" }}><div style={{ fontSize: 20, fontWeight: 700, color: T.blue }}>{log.cardio.duration}</div><div style={{ fontSize: 11, color: T.text3 }}>分鐘</div></div>}
+                        {log.cardio.calories && <div style={{ flex: 1, padding: 12, borderRadius: 10, background: T.bg, textAlign: "center" }}><div style={{ fontSize: 20, fontWeight: 700, color: T.accent }}>{log.cardio.calories}</div><div style={{ fontSize: 11, color: T.text3 }}>卡路里</div></div>}
+                      </div>
+                    </Card>
+                  )}
+
+                  {log.restDay && (
+                    <Card style={{ marginBottom: 16, padding: 16 }}>
+                      <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 12 }}>😴 休息日紀錄</div>
+                      {log.restDay.condition && (
+                        <div style={{ textAlign: "center", padding: "12px 0 14px", marginBottom: log.restDay.activities?.length ? 12 : 0 }}>
+                          <span style={{ fontSize: 36 }}>{log.restDay.condition}</span>
+                          <div style={{ fontSize: 12, color: T.text3, marginTop: 4 }}>
+                            身體狀態：{({"😫":"很疲憊","😐":"普通","😊":"不錯","💪":"很好","🔥":"滿血復活"})[log.restDay.condition] || ""}
+                          </div>
+                        </div>
+                      )}
+                      {log.restDay.activities?.length > 0 && (
+                        <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                          {log.restDay.activities.map(a => (
+                            <span key={a} style={{ padding: "5px 12px", borderRadius: 8, fontSize: 12, background: T.tealLight, color: T.teal, fontWeight: 500 }}>{a}</span>
+                          ))}
+                        </div>
+                      )}
+                    </Card>
+                  )}
+
+                  {log.notes && (
+                    <Card style={{ marginBottom: 16, padding: 14 }}>
+                      <div style={{ fontSize: 13, color: T.text2, lineHeight: 1.7 }}>📝 {log.notes}</div>
+                    </Card>
+                  )}
+
+                  <div style={{ display: "flex", gap: 8 }}>
+                    <button onClick={() => syncCal(log)} style={{ flex: 1, padding: "13px", borderRadius: T.radiusSm, border: "none", background: T.blueLight, color: T.blue, fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: T.font, display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>📅 同步行事曆</button>
+                    <button onClick={() => startEdit(log)} style={{ padding: "13px 16px", borderRadius: T.radiusSm, border: `1.5px solid ${T.sep}`, background: T.white, color: T.text2, cursor: "pointer", fontFamily: T.font, fontSize: 13 }}>✏️</button>
+                    <button onClick={() => { if (confirm("確定刪除？")) deleteLog(log._id); }} style={{ padding: "13px 16px", borderRadius: T.radiusSm, border: "none", background: T.pinkLight, color: T.pink, cursor: "pointer", fontFamily: T.font, fontSize: 13 }}>🗑️</button>
+                  </div>
+                </div>
+              );
+            })()}
+          </div>
+
+          {/* Nav */}
+          <div style={{
+            position: "fixed", bottom: 0, left: "50%", transform: "translateX(-50%)",
+            width: "100%", maxWidth: 430,
+            background: "rgba(255,255,255,0.85)", backdropFilter: "blur(20px)",
+            WebkitBackdropFilter: "blur(20px)",
+            borderTop: `1px solid ${T.sep}`,
+            display: "flex", justifyContent: "space-around",
+            padding: "6px 0 env(safe-area-inset-bottom, 14px)", zIndex: 100,
+          }}>
+            {navItems.map(n => (
+              <button key={n.id} onClick={() => { if (n.id === "new") resetForm(); setView(n.id); }} style={{
+                background: "none", border: "none",
+                color: view === n.id ? T.accent : T.text4,
+                display: "flex", flexDirection: "column", alignItems: "center",
+                gap: 2, cursor: "pointer", fontSize: 10, fontFamily: T.font,
+                padding: "4px 20px", fontWeight: view === n.id ? 600 : 400,
+              }}>
+                <span style={{ fontSize: 22, transform: view === n.id ? "scale(1.15)" : "scale(1)", transition: "transform 0.2s" }}>{n.icon}</span>
+                {n.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+  </script>
+</body>
+</html>
