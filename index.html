@@ -43,12 +43,12 @@
     //  ⚠️ 請替換為你自己的 Firebase 設定
     // ═══════════════════════════════════════
     const firebaseConfig = {
-      apiKey: "YOUR_API_KEY",
-      authDomain: "YOUR_PROJECT.firebaseapp.com",
-      projectId: "YOUR_PROJECT_ID",
-      storageBucket: "YOUR_PROJECT.appspot.com",
-      messagingSenderId: "YOUR_SENDER_ID",
-      appId: "YOUR_APP_ID"
+      apiKey: "AIzaSyAxfeg6g1h-ui3Vtcv2IztUiAH2F6XbW1s",
+      authDomain: "summergym2025.firebaseapp.com",
+      projectId: "summergym2025",
+      storageBucket: "summergym2025.firebasestorage.app",
+      messagingSenderId: "147478843324",
+      appId: "1:147478843324:web:699cce026223e3fa6a25b9"
     };
 
     firebase.initializeApp(firebaseConfig);
@@ -296,120 +296,6 @@
       );
     }
 
-    // ─── Draggable Exercise List ───
-    function DraggableExerciseList({ exercises, exerciseData, groupColor, onUpdateExercise, onReorder, onDelete }) {
-      const [dragIdx, setDragIdx] = useState(null);
-      const [overIdx, setOverIdx] = useState(null);
-      const [touchStartY, setTouchStartY] = useState(null);
-      const [editMode, setEditMode] = useState(false);
-      const listRef = React.useRef(null);
-
-      const handleDragStart = (i) => (e) => {
-        setDragIdx(i);
-        if (e.dataTransfer) {
-          e.dataTransfer.effectAllowed = "move";
-          e.dataTransfer.setData("text/plain", i);
-        }
-      };
-      const handleDragOver = (i) => (e) => { e.preventDefault(); setOverIdx(i); };
-      const handleDragEnd = () => {
-        if (dragIdx !== null && overIdx !== null && dragIdx !== overIdx) {
-          const arr = [...exercises];
-          const [moved] = arr.splice(dragIdx, 1);
-          arr.splice(overIdx, 0, moved);
-          onReorder(arr);
-        }
-        setDragIdx(null); setOverIdx(null);
-      };
-
-      // Touch drag
-      const touchItemRefs = React.useRef([]);
-      const handleTouchStart = (i) => (e) => {
-        setDragIdx(i);
-        setTouchStartY(e.touches[0].clientY);
-      };
-      const handleTouchMove = (e) => {
-        if (dragIdx === null || !listRef.current) return;
-        const y = e.touches[0].clientY;
-        const items = listRef.current.children;
-        for (let j = 0; j < items.length; j++) {
-          const rect = items[j].getBoundingClientRect();
-          if (y >= rect.top && y <= rect.bottom) {
-            setOverIdx(j); break;
-          }
-        }
-      };
-      const handleTouchEnd = () => { handleDragEnd(); setTouchStartY(null); };
-
-      return (
-        <div>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-            <span style={{ fontSize: 12, color: T.text4 }}>
-              {editMode ? "拖拽 ☰ 排序，點 ✕ 刪除" : `共 ${exercises.length} 個動作`}
-            </span>
-            <button onClick={() => setEditMode(!editMode)} style={{
-              padding: "4px 12px", borderRadius: 8, fontSize: 11, fontWeight: 600,
-              border: `1.5px solid ${editMode ? T.accent : T.sep}`,
-              background: editMode ? T.accentLight : T.white,
-              color: editMode ? T.accent : T.text3,
-              cursor: "pointer", fontFamily: T.font,
-            }}>{editMode ? "✓ 完成" : "✎ 編輯順序"}</button>
-          </div>
-          <div ref={listRef}
-            onTouchMove={editMode ? handleTouchMove : undefined}
-            onTouchEnd={editMode ? handleTouchEnd : undefined}
-            style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            {exercises.map((ex, i) => (
-              <div key={ex.name}
-                draggable={editMode}
-                onDragStart={editMode ? handleDragStart(i) : undefined}
-                onDragOver={editMode ? handleDragOver(i) : undefined}
-                onDragEnd={editMode ? handleDragEnd : undefined}
-                onTouchStart={editMode ? handleTouchStart(i) : undefined}
-                style={{
-                  position: "relative",
-                  opacity: dragIdx === i ? 0.5 : 1,
-                  transform: overIdx === i && dragIdx !== null && dragIdx !== i
-                    ? `translateY(${dragIdx < i ? -4 : 4}px)` : "none",
-                  transition: "transform 0.15s, opacity 0.15s",
-                }}>
-                {/* Edit mode overlay: drag handle + delete */}
-                {editMode && (
-                  <div style={{
-                    position: "absolute", left: 0, top: 0, bottom: 0, zIndex: 2,
-                    display: "flex", alignItems: "center", gap: 0,
-                  }}>
-                    <div style={{
-                      width: 32, height: "100%", display: "flex", alignItems: "center",
-                      justifyContent: "center", cursor: "grab", fontSize: 16, color: T.text4,
-                      background: `linear-gradient(90deg, ${T.bg}EE 80%, transparent)`,
-                      borderRadius: "12px 0 0 12px", touchAction: "none",
-                    }}>☰</div>
-                  </div>
-                )}
-                {editMode && (
-                  <button onClick={() => {
-                    if (confirm(`確定要刪除「${ex.name}」嗎？`)) onDelete(i);
-                  }} style={{
-                    position: "absolute", right: 6, top: 6, zIndex: 2,
-                    width: 26, height: 26, borderRadius: 13, border: "none",
-                    background: T.pinkLight, color: T.pink, fontSize: 12,
-                    cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
-                    boxShadow: "0 1px 4px rgba(0,0,0,0.1)",
-                  }}>✕</button>
-                )}
-                <div style={{ paddingLeft: editMode ? 28 : 0, transition: "padding 0.2s" }}>
-                  <ExerciseCard exercise={ex} data={exerciseData[ex.name]}
-                    groupColor={groupColor}
-                    onUpdate={d => onUpdateExercise(ex.name, d)} />
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      );
-    }
-
     // ─── Calendar ───
     function CalendarView({ logs, onSelectDate, selectedDate, allMuscleGroups }) {
       const [viewDate, setViewDate] = useState(new Date());
@@ -575,7 +461,6 @@
       const [newGroupIcon, setNewGroupIcon] = useState("⭐");
       const [newGroupExercises, setNewGroupExercises] = useState("");
       const [saving, setSaving] = useState(false);
-      const [exerciseOrder, setExerciseOrder] = useState({}); // { muscleGroupName: [{name, icon}, ...] }
 
       // ─── Load data from Firebase ───
       useEffect(() => {
@@ -586,10 +471,7 @@
               window.DB.getCustom(),
             ]);
             setLogs(logsData || []);
-            if (customData) {
-              setCustom(customData);
-              if (customData.exerciseOrder) setExerciseOrder(customData.exerciseOrder);
-            }
+            if (customData) setCustom(customData);
           } catch (err) {
             console.error("Firebase load error:", err);
           }
@@ -634,41 +516,6 @@
       const allPartners = [...PARTNERS, ...(custom.partners || [])];
       const allCardioTypes = [...CARDIO_TYPES, ...(custom.cardioTypes || [])];
 
-      // Get exercises for a group, respecting custom order & deletions
-      const getOrderedExercises = useCallback((groupName) => {
-        const defaults = allMuscleGroups[groupName]?.exercises || [];
-        const customOrder = exerciseOrder[groupName];
-        if (!customOrder) return defaults;
-        // customOrder is an array of {name, icon}; filter out deleted ones and preserve order
-        // Also include any new defaults not in customOrder
-        const ordered = customOrder.filter(co => defaults.some(d => d.name === co.name) || co._custom);
-        return ordered;
-      }, [allMuscleGroups, exerciseOrder]);
-
-      const handleReorderExercises = async (groupName, newOrder) => {
-        const updated = { ...exerciseOrder, [groupName]: newOrder };
-        setExerciseOrder(updated);
-        const c = JSON.parse(JSON.stringify(custom));
-        c.exerciseOrder = updated;
-        setCustom(c);
-        await window.DB.saveCustom(c);
-      };
-
-      const handleDeleteExercise = async (groupName, index) => {
-        const current = getOrderedExercises(groupName);
-        const updated = current.filter((_, i) => i !== index);
-        await handleReorderExercises(groupName, updated);
-      };
-
-      // Initialize exercise order for a group if not yet set
-      useEffect(() => {
-        if (muscleGroup && !exerciseOrder[muscleGroup] && allMuscleGroups[muscleGroup]) {
-          setExerciseOrder(prev => ({
-            ...prev,
-            [muscleGroup]: [...(allMuscleGroups[muscleGroup].exercises || [])],
-          }));
-        }
-      }, [muscleGroup, allMuscleGroups]);
       const addCustom = async (type, val) => {
         if (!val.trim()) return;
         const c = JSON.parse(JSON.stringify(custom));
@@ -1013,15 +860,12 @@
                       </Card>
                     )}
 
-                    <div style={{ marginBottom: 16 }}>
-                      <DraggableExerciseList
-                        exercises={getOrderedExercises(muscleGroup)}
-                        exerciseData={exerciseData}
-                        groupColor={allMuscleGroups[muscleGroup]?.color || T.teal}
-                        onUpdateExercise={(name, d) => setExerciseData(p => ({ ...p, [name]: d }))}
-                        onReorder={(newOrder) => handleReorderExercises(muscleGroup, newOrder)}
-                        onDelete={(idx) => handleDeleteExercise(muscleGroup, idx)}
-                      />
+                    <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 16 }}>
+                      {(allMuscleGroups[muscleGroup]?.exercises || []).map(ex => (
+                        <ExerciseCard key={ex.name} exercise={ex} data={exerciseData[ex.name]}
+                          groupColor={allMuscleGroups[muscleGroup]?.color || T.teal}
+                          onUpdate={d => setExerciseData(p => ({ ...p, [ex.name]: d }))} />
+                      ))}
                     </div>
                   </>
                 )}
