@@ -428,6 +428,18 @@
     // ─── Calendar ───
     function CalendarView({ logs, onSelectDate, selectedDate, allMuscleGroups }) {
       const [viewDate, setViewDate] = useState(new Date());
+      const [hasJumped, setHasJumped] = useState(false);
+
+      // Auto-jump to month of most recent log when data first loads
+      useEffect(() => {
+        if (!hasJumped && logs.length > 0 && logs[0].date) {
+          const parts = String(logs[0].date).split("-");
+          if (parts.length === 3) {
+            setViewDate(new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, 1));
+            setHasJumped(true);
+          }
+        }
+      }, [logs, hasJumped]);
       const year = viewDate.getFullYear();
       const month = viewDate.getMonth();
       const firstDay = new Date(year, month, 1).getDay();
@@ -457,7 +469,10 @@
               background: T.bg, cursor: "pointer", fontSize: 18, color: T.text2,
               display: "flex", alignItems: "center", justifyContent: "center",
             }}>‹</button>
-            <span style={{ fontSize: 17, fontWeight: 700, color: T.text }}>{year}年{month + 1}月</span>
+            <span onClick={() => { setViewDate(new Date()); onSelectDate(new Date().toISOString().slice(0,10)); }}
+              style={{ fontSize: 17, fontWeight: 700, color: T.text, cursor: "pointer" }}>
+              {year}年{month + 1}月
+            </span>
             <button onClick={() => setViewDate(new Date(year, month + 1, 1))} style={{
               width: 34, height: 34, borderRadius: 17, border: "none",
               background: T.bg, cursor: "pointer", fontSize: 18, color: T.text2,
