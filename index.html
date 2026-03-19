@@ -644,7 +644,6 @@
             setLogs(logsData || []);
             if (customData) {
               setCustom(customData);
-              if (customData.exerciseOrder) setExerciseOrder(customData.exerciseOrder);
             }
           } catch (err) {
             console.error("Firebase load error:", err);
@@ -673,24 +672,19 @@
       const allPartners = [...PARTNERS, ...(custom.partners || [])];
       const allCardioTypes = [...CARDIO_TYPES, ...(custom.cardioTypes || [])];
 
-      // Exercise order management
+      // Exercise order: session-only (resets to defaults each new workout)
       const getOrderedExercises = (groupName) => {
         const defaults = allMuscleGroups[groupName]?.exercises || [];
-        const saved = exerciseOrder[groupName];
-        if (!saved) return defaults;
-        return saved.filter(co => defaults.some(d => d.name === co.name) || co._custom);
+        const session = exerciseOrder[groupName];
+        if (!session) return defaults;
+        return session;
       };
 
-      const saveExerciseOrder = async (groupName, newOrder) => {
-        const updated = { ...exerciseOrder, [groupName]: newOrder };
-        setExerciseOrder(updated);
-        const c = JSON.parse(JSON.stringify(custom));
-        c.exerciseOrder = updated;
-        setCustom(c);
-        await window.DB.saveCustom(c);
+      const updateSessionOrder = (groupName, newOrder) => {
+        setExerciseOrder(prev => ({ ...prev, [groupName]: newOrder }));
       };
 
-      // Init order for current group if not set
+      // Init session order from defaults when switching muscle group
       useEffect(() => {
         if (muscleGroup && !exerciseOrder[muscleGroup] && allMuscleGroups[muscleGroup]) {
           setExerciseOrder(prev => ({ ...prev, [muscleGroup]: [...(allMuscleGroups[muscleGroup].exercises || [])] }));
@@ -731,6 +725,7 @@
         setTime(nowTimeStr());
         setLocCat(""); setLocSub(""); setPartner(""); setTrainType("");
         setMuscleGroup("臀腿"); setExerciseData({});
+        setExerciseOrder({}); // Reset to defaults for new workout
         setCardioType(""); setCardioDuration(""); setCardioCalories("");
         setNotes(""); setCustomLoc(""); setCustomPartner(""); setCustomCardio(""); setEditingLog(null);
         setRestActivities([]); setRestCondition("");
@@ -743,7 +738,7 @@
           const p = partner === "__custom" ? customPartner : partner;
           const filled = {};
           Object.entries(exerciseData).forEach(([k, v]) => {
-            if (v.sets?.length > 0 && v.sets.some(s => s.weight || s.reps)) filled[k] = v;
+            if (v.sets?.length > 0) filled[k] = v;
           });
           const logData = {
             date, time, location: loc, partner: p,
@@ -1046,9 +1041,9 @@
                         exerciseData={exerciseData}
                         groupColor={allMuscleGroups[muscleGroup]?.color || T.teal}
                         onUpdateExercise={(name, d) => setExerciseData(p => ({ ...p, [name]: d }))}
-                        onReorder={(arr) => saveExerciseOrder(muscleGroup, arr)}
-                        onDelete={(idx) => { const c = getOrderedExercises(muscleGroup).filter((_, i) => i !== idx); saveExerciseOrder(muscleGroup, c); }}
-                        onAddExercise={(ex) => saveExerciseOrder(muscleGroup, [...getOrderedExercises(muscleGroup), ex])}
+                        onReorder={(arr) => updateSessionOrder(muscleGroup, arr)}
+                        onDelete={(idx) => { const c = getOrderedExercises(muscleGroup).filter((_, i) => i !== idx); updateSessionOrder(muscleGroup, c); }}
+                        onAddExercise={(ex) => updateSessionOrder(muscleGroup, [...getOrderedExercises(muscleGroup), ex])}
                       />
                     </div>
                   </>
@@ -1214,7 +1209,11 @@
                           {data.sets?.map((set, i) => (
                             <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4, padding: "4px 8px", borderRadius: 6, background: i % 2 === 0 ? T.bg : "transparent" }}>
                               <span style={{ width: 20, height: 20, borderRadius: 10, background: `${mg?.color || T.teal}18`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 700, color: mg?.color || T.teal }}>{i + 1}</span>
-                              <span style={{ fontSize: 13, color: T.text }}>{set.weight} {data.unit || "kg"} × {set.reps} 下</span>
+                              <span style={{ fontSize: 13, color: T.text }}>
+                                {set.weight || set.reps
+                                  ? `${set.weight || "-"} ${data.unit || "kg"} × ${set.reps || "-"} 下`
+                                  : "（已完成）"}
+                              </span>
                               {set.weight && <span style={{ fontSize: 11, color: T.text4, marginLeft: "auto" }}>≈ {data.unit === "lb" ? `${lbToKg(set.weight)}kg` : `${kgToLb(set.weight)}lb`}</span>}
                             </div>
                           ))}
