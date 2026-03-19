@@ -771,12 +771,14 @@
         setNotes(log.notes || ""); setView("new");
       };
 
-      const weekLogs = logs.filter(l => {
-        const d = new Date(l.date); const now = new Date(); now.setHours(23,59,59);
-        const ago = new Date(now); ago.setDate(now.getDate() - 7);
-        return d >= ago && d <= now;
-      });
-      const monthLogs = logs.filter(l => l.date.startsWith(new Date().toISOString().slice(0, 7)));
+      const today = new Date();
+      const todayStr = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,"0")}-${String(today.getDate()).padStart(2,"0")}`;
+      const thisMonthStr = todayStr.slice(0, 7);
+      const weekAgo = new Date(today); weekAgo.setDate(today.getDate() - 7);
+      const weekAgoStr = `${weekAgo.getFullYear()}-${String(weekAgo.getMonth()+1).padStart(2,"0")}-${String(weekAgo.getDate()).padStart(2,"0")}`;
+
+      const weekLogs = logs.filter(l => l.date >= weekAgoStr && l.date <= todayStr);
+      const monthLogs = logs.filter(l => l.date && l.date.startsWith(thisMonthStr));
       const totalVol = logs.reduce((s, l) => {
         if (!l.exercises) return s;
         return s + Object.values(l.exercises).reduce((ss, ex) =>
@@ -869,7 +871,7 @@
                   <div style={{ display: "flex", justifyContent: "space-around" }}>
                     <StatRing value={weekLogs.length} max={7} label="本週訓練" sub="次" color={T.accent} />
                     <StatRing value={monthLogs.length} max={30} label="本月訓練" sub="次" color={T.blue} />
-                    <StatRing value={totalVol > 1000 ? Math.round(totalVol / 1000) : Math.round(totalVol)} max={totalVol > 1000 ? Math.round(totalVol / 1000) + 10 : Math.round(totalVol) + 100} label="累積訓練量" sub={totalVol > 1000 ? "噸" : "kg"} color={T.green} />
+                    <StatRing value={logs.length} max={Math.max(logs.length, 30)} label="總紀錄" sub="筆" color={T.green} />
                   </div>
                 </Card>
 
