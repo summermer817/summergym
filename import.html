@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Summer's Gym — 匯入工具</title>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, 'Noto Sans TC', sans-serif;
+      background: #F2F2F7; color: #1C1C1E;
+      min-height: 100vh; padding: 20px;
+    }
+    .container { max-width: 520px; margin: 0 auto; }
+    h1 { font-size: 24px; font-weight: 800; margin-bottom: 4px; }
+    .sub { color: #8E8E93; font-size: 13px; margin-bottom: 24px; }
+    .card {
+      background: #fff; border-radius: 16px; padding: 20px;
+      box-shadow: 0 2px 16px rgba(0,0,0,0.06); margin-bottom: 16px;
+    }
+    .card h2 { font-size: 15px; font-weight: 700; margin-bottom: 12px; display: flex; align-items: center; gap: 8px; }
+    .drop-zone {
+      border: 2.5px dashed #E5E5EA; border-radius: 14px;
+      padding: 40px 20px; text-align: center; cursor: pointer;
+      transition: all 0.25s; background: #FAFAFA;
+    }
+    .drop-zone:hover, .drop-zone.over { border-color: #FF6B2C; background: #FFF0E8; }
+    .drop-zone .icon { font-size: 40px; margin-bottom: 8px; }
+    .drop-zone .label { font-size: 14px; color: #8E8E93; }
+    .drop-zone .label b { color: #FF6B2C; }
+    input[type="file"] { display: none; }
+    .preview { margin-top: 16px; }
+    .preview-header {
+      display: flex; justify-content: space-between; align-items: center;
+      margin-bottom: 8px;
+    }
+    .preview-header span { font-size: 13px; color: #8E8E93; }
+    .badge {
+      padding: 3px 10px; border-radius: 8px; font-size: 11px; font-weight: 600;
+    }
+    .badge-w { background: #FFF0E8; color: #FF6B2C; }
+    .badge-c { background: #FFF2E0; color: #FF9500; }
+    .badge-r { background: #E5F6FE; color: #5AC8FA; }
+    .preview-table {
+      width: 100%; font-size: 12px; border-collapse: collapse;
+      overflow-x: auto; display: block;
+    }
+    .preview-table th {
+      background: #F2F2F7; padding: 6px 8px; text-align: left;
+      font-weight: 600; color: #8E8E93; position: sticky; top: 0;
+    }
+    .preview-table td { padding: 6px 8px; border-bottom: 1px solid #F0F0F5; }
+    .preview-wrap { max-height: 200px; overflow: auto; border-radius: 10px; border: 1px solid #E5E5EA; }
+    .btn {
+      width: 100%; padding: 16px; border: none; border-radius: 14px;
+      font-size: 16px; font-weight: 700; cursor: pointer;
+      font-family: inherit; transition: all 0.2s;
+    }
+    .btn-primary {
+      background: linear-gradient(135deg, #FF6B2C, #FF8F55);
+      color: #fff; box-shadow: 0 4px 16px rgba(255,107,44,0.35);
+    }
+    .btn-primary:disabled { background: #AEAEB2; box-shadow: none; cursor: not-allowed; }
+    .btn-outline {
+      background: #fff; color: #FF6B2C; border: 2px solid #FF6B2C;
+      margin-top: 10px;
+    }
+    .log { margin-top: 12px; padding: 12px; background: #F8F8FA; border-radius: 10px; font-size: 12px; color: #3C3C43; max-height: 180px; overflow: auto; }
+    .log .ok { color: #34C759; }
+    .log .err { color: #FF2D55; }
+    .log .info { color: #007AFF; }
+    .stats {
+      display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 16px;
+    }
+    .stat-box {
+      background: #fff; border-radius: 12px; padding: 14px 10px;
+      text-align: center; box-shadow: 0 1px 6px rgba(0,0,0,0.04);
+    }
+    .stat-box .num { font-size: 24px; font-weight: 800; }
+    .stat-box .lbl { font-size: 11px; color: #8E8E93; margin-top: 2px; }
+    .back-link { display: inline-block; margin-bottom: 16px; color: #FF6B2C; text-decoration: none; font-size: 14px; font-weight: 500; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <a href="index.html" class="back-link">← 返回 App</a>
+    <h1>📥 匯入訓練紀錄</h1>
+    <p class="sub">上傳 Excel (.xlsx) 或 CSV 檔案，自動寫入 Firebase</p>
+
+    <div class="card">
+      <h2>📁 選擇檔案</h2>
+      <div class="drop-zone" id="dropZone" onclick="document.getElementById('fileInput').click()">
+        <div class="icon">📄</div>
+        <div class="label">拖拽檔案到這裡，或<b>點擊選擇</b></div>
+        <div class="label" style="font-size:11px; margin-top:4px">支援 .xlsx .xls .csv</div>
+      </div>
+      <input type="file" id="fileInput" accept=".xlsx,.xls,.csv" />
+    </div>
+
+    <div class="card" id="previewCard" style="display:none">
+      <h2>👀 預覽資料</h2>
+      <div class="stats" id="stats"></div>
+      <div id="previewSections"></div>
+    </div>
+
+    <button class="btn btn-primary" id="importBtn" disabled onclick="doImport()">
+      🚀 開始匯入
+    </button>
+
+    <div class="log" id="logArea" style="display:none"></div>
+
+    <div class="card" style="margin-top: 20px">
+      <h2>📋 格式說明</h2>
+      <p style="font-size:13px; color:#8E8E93; line-height:1.8">
+        下載 <b>gym_import_template.xlsx</b> 範本填寫，或自己建立 Excel：<br><br>
+        <b style="color:#FF6B2C">重訓紀錄</b>（工作表名含「重訓」）<br>
+        日期 | 時間 | 地點 | 夥伴 | 部位 | 動作名稱 | 組數 | 重量 | 單位 | 次數 | 備註<br><br>
+        <b style="color:#FF9500">有氧紀錄</b>（工作表名含「有氧」）<br>
+        日期 | 時間 | 地點 | 夥伴 | 有氧類型 | 時間(分鐘) | 卡路里 | 備註<br><br>
+        <b style="color:#5AC8FA">休息日</b>（工作表名含「休息」）<br>
+        日期 | 時間 | 休息活動 | 身體狀態 | 備註<br><br>
+        CSV 檔案需包含表頭，系統會自動偵測類型。
+      </p>
+    </div>
+  </div>
+
+  <script>
+    // ─── Firebase ───
+    firebase.initializeApp({
+      apiKey: "AIzaSyAxfeg6g1h-ui3Vtcv2IztUiAH2F6XbW1s",
+      authDomain: "summergym2025.firebaseapp.com",
+      projectId: "summergym2025",
+      storageBucket: "summergym2025.firebasestorage.app",
+      messagingSenderId: "147478843324",
+      appId: "1:147478843324:web:699cce026223e3fa6a25b9"
+    });
+    const db = firebase.firestore();
+
+    let parsedData = { weight: [], cardio: [], rest: [] };
+
+    // ─── File handling ───
+    const dropZone = document.getElementById("dropZone");
+    const fileInput = document.getElementById("fileInput");
+
+    dropZone.addEventListener("dragover", e => { e.preventDefault(); dropZone.classList.add("over"); });
+    dropZone.addEventListener("dragleave", () => dropZone.classList.remove("over"));
+    dropZone.addEventListener("drop", e => {
+      e.preventDefault(); dropZone.classList.remove("over");
+      if (e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
+    });
+    fileInput.addEventListener("change", e => { if (e.target.files.length) handleFile(e.target.files[0]); });
+
+    function handleFile(file) {
+      dropZone.innerHTML = `<div class="icon">✅</div><div class="label"><b>${file.name}</b><br>${(file.size / 1024).toFixed(1)} KB</div>`;
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        try {
+          const wb = XLSX.read(e.target.result, { type: "array", cellDates: true });
+          parsedData = { weight: [], cardio: [], rest: [] };
+          
+          for (const name of wb.SheetNames) {
+            const rows = XLSX.utils.sheet_to_json(wb.Sheets[name], { defval: "" });
+            if (!rows.length) continue;
+            
+            const type = detectType(name, rows[0]);
+            if (type === "weight") parsedData.weight.push(...rows);
+            else if (type === "cardio") parsedData.cardio.push(...rows);
+            else if (type === "rest") parsedData.rest.push(...rows);
+          }
+          showPreview();
+        } catch (err) {
+          alert("檔案讀取失敗：" + err.message);
+        }
+      };
+      reader.readAsArrayBuffer(file);
+    }
+
+    function detectType(sheetName, firstRow) {
+      const n = sheetName.toLowerCase();
+      const keys = Object.keys(firstRow).join(",").toLowerCase();
+      if (n.includes("重訓") || n.includes("weight") || keys.includes("部位") || keys.includes("動作")) return "weight";
+      if (n.includes("有氧") || n.includes("cardio") || keys.includes("卡路里") || keys.includes("有氧")) return "cardio";
+      if (n.includes("休息") || n.includes("rest") || keys.includes("身體狀態")) return "rest";
+      // CSV fallback: check columns
+      if (keys.includes("重量") || keys.includes("次數")) return "weight";
+      if (keys.includes("分鐘") || keys.includes("duration")) return "cardio";
+      return "weight"; // default
+    }
+
+    function showPreview() {
+      const total = parsedData.weight.length + parsedData.cardio.length + parsedData.rest.length;
+      if (total === 0) { alert("沒有找到可匯入的資料"); return; }
+
+      document.getElementById("previewCard").style.display = "block";
+      document.getElementById("importBtn").disabled = false;
+
+      // Count unique sessions for weight training
+      const weightSessions = new Set(parsedData.weight.map(r => `${fmtDate(r)}|${fmtVal(r, "時間")}`)).size;
+
+      document.getElementById("stats").innerHTML = `
+        <div class="stat-box"><div class="num" style="color:#FF6B2C">${weightSessions || parsedData.weight.length}</div><div class="lbl">重訓${weightSessions ? "次" : "列"}</div></div>
+        <div class="stat-box"><div class="num" style="color:#FF9500">${parsedData.cardio.length}</div><div class="lbl">有氧紀錄</div></div>
+        <div class="stat-box"><div class="num" style="color:#5AC8FA">${parsedData.rest.length}</div><div class="lbl">休息日</div></div>
+      `;
+
+      let html = "";
+      if (parsedData.weight.length) html += makePreviewTable("重訓紀錄", "w", parsedData.weight);
+      if (parsedData.cardio.length) html += makePreviewTable("有氧紀錄", "c", parsedData.cardio);
+      if (parsedData.rest.length) html += makePreviewTable("休息日", "r", parsedData.rest);
+      document.getElementById("previewSections").innerHTML = html;
+    }
+
+    function makePreviewTable(title, type, rows) {
+      const keys = Object.keys(rows[0]);
+      const preview = rows.slice(0, 5);
+      return `
+        <div class="preview">
+          <div class="preview-header">
+            <span class="badge badge-${type}">${title}</span>
+            <span>${rows.length} 列</span>
+          </div>
+          <div class="preview-wrap">
+            <table class="preview-table">
+              <thead><tr>${keys.map(k => `<th>${k}</th>`).join("")}</tr></thead>
+              <tbody>${preview.map(r => `<tr>${keys.map(k => `<td>${r[k] ?? ""}</td>`).join("")}</tr>`).join("")}</tbody>
+            </table>
+          </div>
+          ${rows.length > 5 ? `<div style="text-align:center;font-size:11px;color:#AEAEB2;margin-top:4px">... 還有 ${rows.length - 5} 列</div>` : ""}
+        </div>
+      `;
+    }
+
+    // ─── Helper: flexible column name matching ───
+    function fmtVal(row, ...names) {
+      for (const n of names) {
+        for (const key of Object.keys(row)) {
+          if (key.includes(n)) return row[key];
+        }
+      }
+      return "";
+    }
+
+    function fmtDate(row) {
+      const v = fmtVal(row, "日期", "date", "Date");
+      if (!v) return "";
+      if (v instanceof Date) return v.toISOString().slice(0, 10);
+      const s = String(v).trim();
+      // Handle various date formats
+      const m = s.match(/(\d{4})[/-](\d{1,2})[/-](\d{1,2})/);
+      if (m) return `${m[1]}-${m[2].padStart(2,"0")}-${m[3].padStart(2,"0")}`;
+      return s;
+    }
+
+    function fmtTime(row) {
+      const v = fmtVal(row, "時間", "time", "Time");
+      if (!v) return "12:00";
+      if (v instanceof Date) return v.toTimeString().slice(0, 5);
+      const s = String(v).trim();
+      const m = s.match(/(\d{1,2}):(\d{2})/);
+      if (m) return `${m[1].padStart(2,"0")}:${m[2]}`;
+      return "12:00";
+    }
+
+    // ─── Import to Firebase ───
+    async function doImport() {
+      const btn = document.getElementById("importBtn");
+      const logArea = document.getElementById("logArea");
+      btn.disabled = true;
+      btn.textContent = "匯入中...";
+      logArea.style.display = "block";
+      logArea.innerHTML = "";
+
+      const log = (msg, cls = "") => {
+        logArea.innerHTML += `<div class="${cls}">${msg}</div>`;
+        logArea.scrollTop = logArea.scrollHeight;
+      };
+
+      let ok = 0, fail = 0;
+
+      // ── Weight training: group rows by date+time into sessions ──
+      if (parsedData.weight.length) {
+        log("📦 處理重訓紀錄...", "info");
+        const sessions = {};
+        for (const row of parsedData.weight) {
+          const date = fmtDate(row);
+          const time = fmtTime(row);
+          const key = `${date}|${time}`;
+          if (!sessions[key]) {
+            sessions[key] = {
+              date, time,
+              location: String(fmtVal(row, "地點", "location") || ""),
+              partner: String(fmtVal(row, "夥伴", "partner") || ""),
+              muscleGroup: String(fmtVal(row, "部位", "muscle", "group") || ""),
+              exercises: {},
+              notes: "",
+            };
+          }
+          const s = sessions[key];
+          const exName = String(fmtVal(row, "動作", "exercise", "名稱") || "");
+          const weight = fmtVal(row, "重量", "weight");
+          const reps = fmtVal(row, "次數", "reps");
+          const unit = String(fmtVal(row, "單位", "unit") || "kg").toLowerCase();
+          const note = String(fmtVal(row, "備註", "note", "notes") || "");
+          
+          if (exName) {
+            if (!s.exercises[exName]) s.exercises[exName] = { sets: [], unit };
+            s.exercises[exName].sets.push({
+              weight: String(weight || ""),
+              reps: String(reps || ""),
+            });
+          }
+          if (note && !s.notes) s.notes = note;
+        }
+
+        for (const s of Object.values(sessions)) {
+          try {
+            await db.collection("gym_logs").add({
+              date: s.date, time: s.time, location: s.location, partner: s.partner,
+              trainingType: "重訓", muscleGroup: s.muscleGroup,
+              exercises: s.exercises, cardio: null, restDay: null, notes: s.notes,
+            });
+            ok++;
+            log(`✅ 重訓 ${s.date} ${s.time} — ${s.muscleGroup} (${Object.keys(s.exercises).length}個動作)`, "ok");
+          } catch (e) {
+            fail++;
+            log(`❌ 重訓 ${s.date} 失敗: ${e.message}`, "err");
+          }
+        }
+      }
+
+      // ── Cardio ──
+      if (parsedData.cardio.length) {
+        log("📦 處理有氧紀錄...", "info");
+        for (const row of parsedData.cardio) {
+          try {
+            await db.collection("gym_logs").add({
+              date: fmtDate(row), time: fmtTime(row),
+              location: String(fmtVal(row, "地點", "location") || ""),
+              partner: String(fmtVal(row, "夥伴", "partner") || ""),
+              trainingType: "有氧", muscleGroup: null, exercises: null,
+              cardio: {
+                type: String(fmtVal(row, "有氧", "類型", "type") || ""),
+                duration: String(fmtVal(row, "分鐘", "時間", "duration") || ""),
+                calories: String(fmtVal(row, "卡路里", "卡", "calories") || ""),
+              },
+              restDay: null,
+              notes: String(fmtVal(row, "備註", "note") || ""),
+            });
+            ok++;
+            log(`✅ 有氧 ${fmtDate(row)} — ${fmtVal(row, "有氧", "類型", "type")}`, "ok");
+          } catch (e) {
+            fail++;
+            log(`❌ 有氧 ${fmtDate(row)} 失敗: ${e.message}`, "err");
+          }
+        }
+      }
+
+      // ── Rest days ──
+      if (parsedData.rest.length) {
+        log("📦 處理休息日...", "info");
+        for (const row of parsedData.rest) {
+          try {
+            const activities = String(fmtVal(row, "休息", "活動", "activity") || "");
+            await db.collection("gym_logs").add({
+              date: fmtDate(row), time: fmtTime(row),
+              location: "", partner: "",
+              trainingType: "休息日", muscleGroup: null, exercises: null, cardio: null,
+              restDay: {
+                activities: activities ? activities.split(/[,，、]/).map(s => s.trim()).filter(Boolean) : [],
+                condition: String(fmtVal(row, "身體", "狀態", "condition") || ""),
+              },
+              notes: String(fmtVal(row, "備註", "note") || ""),
+            });
+            ok++;
+            log(`✅ 休息日 ${fmtDate(row)}`, "ok");
+          } catch (e) {
+            fail++;
+            log(`❌ 休息日 ${fmtDate(row)} 失敗: ${e.message}`, "err");
+          }
+        }
+      }
+
+      log(`\n🎉 完成！成功 ${ok} 筆，失敗 ${fail} 筆`, "info");
+      btn.textContent = `✅ 匯入完成（${ok} 筆）`;
+      if (fail === 0) {
+        btn.style.background = "#34C759";
+        btn.style.boxShadow = "0 4px 16px rgba(52,199,89,0.35)";
+      }
+    }
+  </script>
+</body>
+</html>
