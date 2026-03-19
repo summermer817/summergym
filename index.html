@@ -297,19 +297,18 @@
     }
 
     // ─── Draggable Exercise List ───
-    function DraggableExerciseList({ exercises, exerciseData, groupColor, onUpdateExercise, onReorder, onDelete }) {
+    function DraggableExerciseList({ exercises, exerciseData, groupColor, onUpdateExercise, onReorder, onDelete, onAddExercise }) {
       const [dragIdx, setDragIdx] = useState(null);
       const [overIdx, setOverIdx] = useState(null);
-      const [touchStartY, setTouchStartY] = useState(null);
       const [editMode, setEditMode] = useState(false);
+      const [showAddEx, setShowAddEx] = useState(false);
+      const [newExName, setNewExName] = useState("");
+      const [newExIcon, setNewExIcon] = useState("🔹");
       const listRef = React.useRef(null);
 
       const handleDragStart = (i) => (e) => {
         setDragIdx(i);
-        if (e.dataTransfer) {
-          e.dataTransfer.effectAllowed = "move";
-          e.dataTransfer.setData("text/plain", i);
-        }
+        if (e.dataTransfer) { e.dataTransfer.effectAllowed = "move"; e.dataTransfer.setData("text/plain", i); }
       };
       const handleDragOver = (i) => (e) => { e.preventDefault(); setOverIdx(i); };
       const handleDragEnd = () => {
@@ -322,24 +321,24 @@
         setDragIdx(null); setOverIdx(null);
       };
 
-      // Touch drag
-      const touchItemRefs = React.useRef([]);
-      const handleTouchStart = (i) => (e) => {
-        setDragIdx(i);
-        setTouchStartY(e.touches[0].clientY);
-      };
+      const handleTouchStart = (i) => (e) => { setDragIdx(i); };
       const handleTouchMove = (e) => {
         if (dragIdx === null || !listRef.current) return;
         const y = e.touches[0].clientY;
         const items = listRef.current.children;
         for (let j = 0; j < items.length; j++) {
           const rect = items[j].getBoundingClientRect();
-          if (y >= rect.top && y <= rect.bottom) {
-            setOverIdx(j); break;
-          }
+          if (y >= rect.top && y <= rect.bottom) { setOverIdx(j); break; }
         }
       };
-      const handleTouchEnd = () => { handleDragEnd(); setTouchStartY(null); };
+      const handleTouchEnd = () => { handleDragEnd(); };
+
+      const doAddExercise = () => {
+        if (!newExName.trim()) return;
+        if (exercises.some(e => e.name === newExName.trim())) { alert("此動作已存在！"); return; }
+        onAddExercise({ name: newExName.trim(), icon: newExIcon || "🔹", _custom: true });
+        setNewExName(""); setNewExIcon("🔹"); setShowAddEx(false);
+      };
 
       return (
         <div>
@@ -347,14 +346,57 @@
             <span style={{ fontSize: 12, color: T.text4 }}>
               {editMode ? "拖拽 ☰ 排序，點 ✕ 刪除" : `共 ${exercises.length} 個動作`}
             </span>
-            <button onClick={() => setEditMode(!editMode)} style={{
-              padding: "4px 12px", borderRadius: 8, fontSize: 11, fontWeight: 600,
-              border: `1.5px solid ${editMode ? T.accent : T.sep}`,
-              background: editMode ? T.accentLight : T.white,
-              color: editMode ? T.accent : T.text3,
-              cursor: "pointer", fontFamily: T.font,
-            }}>{editMode ? "✓ 完成" : "✎ 編輯順序"}</button>
+            <div style={{ display: "flex", gap: 6 }}>
+              <button onClick={() => setShowAddEx(!showAddEx)} style={{
+                padding: "4px 10px", borderRadius: 8, fontSize: 11, fontWeight: 600,
+                border: `1.5px solid ${showAddEx ? groupColor : T.sep}`,
+                background: showAddEx ? `${groupColor}12` : T.white,
+                color: showAddEx ? groupColor : T.text3,
+                cursor: "pointer", fontFamily: T.font,
+              }}>{showAddEx ? "✕ 取消" : "+ 新增動作"}</button>
+              <button onClick={() => { setEditMode(!editMode); setShowAddEx(false); }} style={{
+                padding: "4px 10px", borderRadius: 8, fontSize: 11, fontWeight: 600,
+                border: `1.5px solid ${editMode ? T.accent : T.sep}`,
+                background: editMode ? T.accentLight : T.white,
+                color: editMode ? T.accent : T.text3,
+                cursor: "pointer", fontFamily: T.font,
+              }}>{editMode ? "✓ 完成" : "✎ 編輯"}</button>
+            </div>
           </div>
+
+          {showAddEx && (
+            <div style={{
+              background: T.white, borderRadius: T.radiusSm, padding: 14, marginBottom: 10,
+              border: `2px dashed ${groupColor}40`,
+            }}>
+              <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                <input value={newExIcon} onChange={e => setNewExIcon(e.target.value)}
+                  style={{
+                    width: 42, height: 42, borderRadius: 10, border: `1.5px solid ${T.sep}`,
+                    background: `${groupColor}10`, textAlign: "center", fontSize: 18,
+                    outline: "none", fontFamily: T.font,
+                  }} />
+                <input placeholder="輸入動作名稱" value={newExName}
+                  onChange={e => setNewExName(e.target.value)}
+                  onKeyDown={e => e.key === "Enter" && doAddExercise()}
+                  style={{
+                    flex: 1, padding: "10px 14px", borderRadius: 10,
+                    border: `1.5px solid ${T.sep}`, background: T.white,
+                    color: T.text, fontSize: 14, fontFamily: T.font, outline: "none",
+                  }} />
+                <button onClick={doAddExercise} style={{
+                  padding: "10px 14px", borderRadius: 10, border: "none",
+                  background: groupColor, color: "#fff", fontSize: 13,
+                  fontWeight: 600, cursor: "pointer", fontFamily: T.font,
+                  whiteSpace: "nowrap", boxShadow: `0 2px 8px ${groupColor}40`,
+                }}>加入</button>
+              </div>
+              <div style={{ fontSize: 11, color: T.text4, marginTop: 6, paddingLeft: 50 }}>
+                左邊可自訂 emoji 圖示，例如 💪🏋️🔹
+              </div>
+            </div>
+          )}
+
           <div ref={listRef}
             onTouchMove={editMode ? handleTouchMove : undefined}
             onTouchEnd={editMode ? handleTouchEnd : undefined}
@@ -373,11 +415,10 @@
                     ? `translateY(${dragIdx < i ? -4 : 4}px)` : "none",
                   transition: "transform 0.15s, opacity 0.15s",
                 }}>
-                {/* Edit mode overlay: drag handle + delete */}
                 {editMode && (
                   <div style={{
                     position: "absolute", left: 0, top: 0, bottom: 0, zIndex: 2,
-                    display: "flex", alignItems: "center", gap: 0,
+                    display: "flex", alignItems: "center",
                   }}>
                     <div style={{
                       width: 32, height: "100%", display: "flex", alignItems: "center",
@@ -657,6 +698,12 @@
       const handleDeleteExercise = async (groupName, index) => {
         const current = getOrderedExercises(groupName);
         const updated = current.filter((_, i) => i !== index);
+        await handleReorderExercises(groupName, updated);
+      };
+
+      const handleAddExercise = async (groupName, newEx) => {
+        const current = getOrderedExercises(groupName);
+        const updated = [...current, newEx];
         await handleReorderExercises(groupName, updated);
       };
 
@@ -1021,6 +1068,7 @@
                         onUpdateExercise={(name, d) => setExerciseData(p => ({ ...p, [name]: d }))}
                         onReorder={(newOrder) => handleReorderExercises(muscleGroup, newOrder)}
                         onDelete={(idx) => handleDeleteExercise(muscleGroup, idx)}
+                        onAddExercise={(ex) => handleAddExercise(muscleGroup, ex)}
                       />
                     </div>
                   </>
