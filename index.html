@@ -99,7 +99,7 @@
   </script>
 
   <script type="text/babel" data-type="module">
-    const { useState, useEffect, useMemo, useCallback } = React;
+    const { useState, useEffect, useMemo } = React;
 
     // ─── UTC+8 Taiwan time helpers ───
     function todayStr() {
@@ -241,8 +241,8 @@
       />
     );
 
-    // ─── Exercise Card ───
-    function ExerciseCard({ exercise, data, onUpdate, groupColor }) {
+    // ─── Exercise Card (with check toggle) ───
+    function ExerciseCard({ exercise, data, onUpdate, groupColor, checked, onToggle }) {
       const [unit, setUnit] = useState(data?.unit || "kg");
       const sets = data?.sets || [];
       const updateSets = (s) => onUpdate({ ...data, sets: s, unit });
@@ -250,7 +250,7 @@
         const last = sets[sets.length - 1];
         updateSets([...sets, { weight: last?.weight || "", reps: last?.reps || "" }]);
       };
-      useEffect(() => { if (data) onUpdate({ ...data, unit }); }, [unit]);
+      useEffect(() => { if (data && data.unit !== unit) onUpdate({ ...data, unit }); }, [unit]);
 
       const vol = sets.reduce((s, set) => {
         const w = parseFloat(set.weight) || 0;
@@ -260,110 +260,101 @@
 
       return (
         <div style={{
-          background: sets.length > 0 ? `${groupColor}08` : T.white,
-          borderRadius: T.radiusSm, padding: "12px 14px",
-          border: `1.5px solid ${sets.length > 0 ? groupColor + "30" : T.sep}`,
+          background: checked ? `${groupColor}06` : T.bg,
+          borderRadius: T.radiusSm, padding: "10px 12px",
+          border: `1.5px solid ${checked ? groupColor + "30" : T.sep}`,
           transition: "all 0.25s",
+          opacity: checked ? 1 : 0.6,
         }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: sets.length > 0 ? 10 : 0 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <span style={{
-                width: 30, height: 30, borderRadius: 8, display: "flex",
-                alignItems: "center", justifyContent: "center", fontSize: 15,
-                background: `${groupColor}15`,
-              }}>{exercise.icon}</span>
-              <span style={{ fontSize: 14, fontWeight: 500, color: T.text }}>{exercise.name}</span>
+          {/* Header row with checkbox */}
+          <div onClick={onToggle} style={{
+            display: "flex", alignItems: "center", gap: 10, cursor: "pointer",
+            marginBottom: checked && sets.length > 0 ? 10 : 0,
+          }}>
+            <div style={{
+              width: 24, height: 24, borderRadius: 12, flexShrink: 0,
+              border: checked ? "none" : `2px solid ${T.text4}`,
+              background: checked ? groupColor : "transparent",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              transition: "all 0.2s",
+            }}>
+              {checked && <span style={{ color: "#fff", fontSize: 14, lineHeight: 1 }}>✓</span>}
             </div>
-            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-              {vol > 0 && <span style={{ fontSize: 11, color: T.text3, fontWeight: 500 }}>{vol.toFixed(0)}kg</span>}
-              <button onClick={() => setUnit(u => u === "kg" ? "lb" : "kg")} style={{
-                padding: "3px 8px", borderRadius: 6, fontSize: 10, fontWeight: 700,
+            <span style={{
+              width: 28, height: 28, borderRadius: 7, display: "flex",
+              alignItems: "center", justifyContent: "center", fontSize: 14,
+              background: `${groupColor}12`,
+            }}>{exercise.icon}</span>
+            <span style={{
+              fontSize: 14, fontWeight: 500, flex: 1,
+              color: checked ? T.text : T.text4,
+              textDecoration: checked ? "none" : "none",
+            }}>{exercise.name}</span>
+            {checked && vol > 0 && <span style={{ fontSize: 11, color: T.text3, fontWeight: 500 }}>{vol.toFixed(0)}kg</span>}
+            {checked && (
+              <button onClick={(e) => { e.stopPropagation(); setUnit(u => u === "kg" ? "lb" : "kg"); }} style={{
+                padding: "2px 7px", borderRadius: 5, fontSize: 10, fontWeight: 700,
                 border: `1.5px solid ${groupColor}40`, background: "transparent",
                 color: groupColor, cursor: "pointer", fontFamily: T.font,
               }}>{unit.toUpperCase()}</button>
-              {sets.length === 0 && (
-                <button onClick={addSet} style={{
-                  padding: "3px 10px", borderRadius: 6, fontSize: 12,
-                  border: "none", background: groupColor, color: "#fff",
-                  cursor: "pointer", fontFamily: T.font, fontWeight: 600,
-                }}>+</button>
-              )}
-            </div>
+            )}
           </div>
-          {sets.map((set, i) => (
-            <div key={i} style={{ display: "flex", gap: 6, alignItems: "center", marginBottom: 6 }}>
-              <span style={{
-                width: 22, height: 22, borderRadius: 11, background: `${groupColor}18`,
-                display: "flex", alignItems: "center", justifyContent: "center",
-                fontSize: 10, fontWeight: 700, color: groupColor, flexShrink: 0,
-              }}>{i + 1}</span>
-              <input type="number" placeholder="重量" value={set.weight || ""}
-                onChange={e => { const n = [...sets]; n[i] = { ...set, weight: e.target.value }; updateSets(n); }}
-                style={{
-                  width: 64, padding: "6px 8px", borderRadius: 8, textAlign: "center",
-                  border: `1.5px solid ${T.sep}`, background: T.white, color: T.text,
-                  fontSize: 13, fontFamily: T.font, outline: "none",
-                }} />
-              <span style={{ fontSize: 11, color: T.text4 }}>{unit}</span>
-              <span style={{ color: T.text4, fontSize: 13 }}>×</span>
-              <input type="number" placeholder="次" value={set.reps || ""}
-                onChange={e => { const n = [...sets]; n[i] = { ...set, reps: e.target.value }; updateSets(n); }}
-                style={{
-                  width: 50, padding: "6px 8px", borderRadius: 8, textAlign: "center",
-                  border: `1.5px solid ${T.sep}`, background: T.white, color: T.text,
-                  fontSize: 13, fontFamily: T.font, outline: "none",
-                }} />
-              <span style={{ fontSize: 11, color: T.text4 }}>下</span>
-              {set.weight && (
-                <span style={{ fontSize: 10, color: T.text4, marginLeft: "auto" }}>
-                  ≈{unit === "lb" ? `${lbToKg(set.weight)}kg` : `${kgToLb(set.weight)}lb`}
-                </span>
-              )}
-              <button onClick={() => updateSets(sets.filter((_, j) => j !== i))} style={{
-                width: 20, height: 20, borderRadius: 10, border: "none",
-                background: `${T.pink}15`, color: T.pink, fontSize: 11,
-                cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
-              }}>✕</button>
+
+          {/* Sets (only when checked) */}
+          {checked && (
+            <div style={{ paddingLeft: 34 }}>
+              {sets.map((set, i) => (
+                <div key={i} style={{ display: "flex", gap: 6, alignItems: "center", marginBottom: 5 }}>
+                  <span style={{
+                    width: 20, height: 20, borderRadius: 10, background: `${groupColor}15`,
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                    fontSize: 10, fontWeight: 700, color: groupColor, flexShrink: 0,
+                  }}>{i + 1}</span>
+                  <input type="number" placeholder="重量" value={set.weight || ""}
+                    onChange={e => { const n = [...sets]; n[i] = { ...set, weight: e.target.value }; updateSets(n); }}
+                    style={{
+                      width: 60, padding: "5px 7px", borderRadius: 7, textAlign: "center",
+                      border: `1.5px solid ${T.sep}`, background: T.white, color: T.text,
+                      fontSize: 13, fontFamily: T.font, outline: "none",
+                    }} />
+                  <span style={{ fontSize: 11, color: T.text4 }}>{unit}</span>
+                  <span style={{ color: T.text4, fontSize: 12 }}>×</span>
+                  <input type="number" placeholder="次" value={set.reps || ""}
+                    onChange={e => { const n = [...sets]; n[i] = { ...set, reps: e.target.value }; updateSets(n); }}
+                    style={{
+                      width: 48, padding: "5px 7px", borderRadius: 7, textAlign: "center",
+                      border: `1.5px solid ${T.sep}`, background: T.white, color: T.text,
+                      fontSize: 13, fontFamily: T.font, outline: "none",
+                    }} />
+                  <span style={{ fontSize: 11, color: T.text4 }}>下</span>
+                  {set.weight && (
+                    <span style={{ fontSize: 9, color: T.text4, marginLeft: "auto" }}>
+                      ≈{unit === "lb" ? `${lbToKg(set.weight)}kg` : `${kgToLb(set.weight)}lb`}
+                    </span>
+                  )}
+                  <button onClick={() => updateSets(sets.filter((_, j) => j !== i))} style={{
+                    width: 18, height: 18, borderRadius: 9, border: "none",
+                    background: `${T.pink}12`, color: T.pink, fontSize: 10,
+                    cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
+                  }}>✕</button>
+                </div>
+              ))}
+              <button onClick={addSet} style={{
+                width: "100%", padding: "5px", borderRadius: 7, marginTop: 2,
+                border: `1.5px dashed ${groupColor}35`, background: "transparent",
+                color: groupColor, fontSize: 11, cursor: "pointer", fontFamily: T.font, fontWeight: 500,
+              }}>+ 新增一組</button>
             </div>
-          ))}
-          {sets.length > 0 && (
-            <button onClick={addSet} style={{
-              width: "100%", padding: "6px", borderRadius: 8, marginTop: 4,
-              border: `1.5px dashed ${groupColor}40`, background: "transparent",
-              color: groupColor, fontSize: 12, cursor: "pointer", fontFamily: T.font, fontWeight: 500,
-            }}>+ 新增一組</button>
           )}
         </div>
       );
     }
 
-    // ─── Draggable Exercise List ───
-    function DraggableExerciseList({ exercises, exerciseData, groupColor, onUpdateExercise, onReorder, onDelete, onAddExercise }) {
-      const [dragIdx, setDragIdx] = useState(null);
-      const [overIdx, setOverIdx] = useState(null);
-      const [editMode, setEditMode] = useState(false);
+    // ─── Checkable Exercise List ───
+    function CheckableExerciseList({ exercises, exerciseData, checkedExercises, groupColor, onUpdateExercise, onToggle, onToggleAll, onAddExercise }) {
       const [showAdd, setShowAdd] = useState(false);
       const [newName, setNewName] = useState("");
       const [newIcon, setNewIcon] = useState("🔹");
-      const listRef = React.useRef(null);
-
-      const onDragStart = (i) => (e) => { setDragIdx(i); e.dataTransfer.effectAllowed = "move"; };
-      const onDragOver = (i) => (e) => { e.preventDefault(); setOverIdx(i); };
-      const onDragEnd = () => {
-        if (dragIdx !== null && overIdx !== null && dragIdx !== overIdx) {
-          const a = [...exercises]; const [m] = a.splice(dragIdx, 1); a.splice(overIdx, 0, m); onReorder(a);
-        }
-        setDragIdx(null); setOverIdx(null);
-      };
-      const onTouchStart = (i) => () => setDragIdx(i);
-      const onTouchMove = (e) => {
-        if (dragIdx === null || !listRef.current) return;
-        const y = e.touches[0].clientY;
-        Array.from(listRef.current.children).forEach((el, j) => {
-          const r = el.getBoundingClientRect();
-          if (y >= r.top && y <= r.bottom) setOverIdx(j);
-        });
-      };
 
       const doAdd = () => {
         if (!newName.trim()) return;
@@ -372,25 +363,26 @@
         setNewName(""); setNewIcon("🔹"); setShowAdd(false);
       };
 
+      const checkedCount = exercises.filter(ex => checkedExercises[ex.name]).length;
+
       return (
         <div>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-            <span style={{ fontSize: 12, color: T.text4 }}>
-              {editMode ? "拖拽 ☰ 排序・點 ✕ 刪除" : `共 ${exercises.length} 個動作`}
+            <span style={{ fontSize: 12, color: T.text3 }}>
+              已勾選 <b style={{ color: groupColor }}>{checkedCount}</b> / {exercises.length} 個動作
             </span>
             <div style={{ display: "flex", gap: 6 }}>
-              <button onClick={() => { setShowAdd(!showAdd); setEditMode(false); }} style={{
+              <button onClick={onToggleAll} style={{
+                padding: "4px 10px", borderRadius: 8, fontSize: 11, fontWeight: 600,
+                border: `1.5px solid ${T.sep}`, background: T.white,
+                color: T.text3, cursor: "pointer", fontFamily: T.font,
+              }}>{checkedCount === exercises.length ? "全不選" : "全選"}</button>
+              <button onClick={() => setShowAdd(!showAdd)} style={{
                 padding: "4px 10px", borderRadius: 8, fontSize: 11, fontWeight: 600,
                 border: `1.5px solid ${showAdd ? groupColor : T.sep}`,
                 background: showAdd ? `${groupColor}12` : T.white,
                 color: showAdd ? groupColor : T.text3, cursor: "pointer", fontFamily: T.font,
               }}>{showAdd ? "✕ 取消" : "+ 新增動作"}</button>
-              <button onClick={() => { setEditMode(!editMode); setShowAdd(false); }} style={{
-                padding: "4px 10px", borderRadius: 8, fontSize: 11, fontWeight: 600,
-                border: `1.5px solid ${editMode ? T.accent : T.sep}`,
-                background: editMode ? T.accentLight : T.white,
-                color: editMode ? T.accent : T.text3, cursor: "pointer", fontFamily: T.font,
-              }}>{editMode ? "✓ 完成" : "✎ 編輯"}</button>
             </div>
           </div>
           {showAdd && (
@@ -412,38 +404,12 @@
               <div style={{ fontSize: 11, color: T.text4, marginTop: 6, paddingLeft: 50 }}>左邊可自訂 emoji 圖示</div>
             </div>
           )}
-          <div ref={listRef} onTouchMove={editMode ? onTouchMove : undefined} onTouchEnd={editMode ? onDragEnd : undefined}
-            style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            {exercises.map((ex, i) => (
-              <div key={ex.name} draggable={editMode}
-                onDragStart={editMode ? onDragStart(i) : undefined}
-                onDragOver={editMode ? onDragOver(i) : undefined}
-                onDragEnd={editMode ? onDragEnd : undefined}
-                onTouchStart={editMode ? onTouchStart(i) : undefined}
-                style={{
-                  position: "relative", opacity: dragIdx === i ? 0.5 : 1,
-                  transform: overIdx === i && dragIdx !== null && dragIdx !== i ? `translateY(${dragIdx < i ? -4 : 4}px)` : "none",
-                  transition: "transform 0.15s, opacity 0.15s",
-                }}>
-                {editMode && (
-                  <div style={{ position: "absolute", left: 0, top: 0, bottom: 0, zIndex: 2, display: "flex", alignItems: "center" }}>
-                    <div style={{ width: 32, height: "100%", display: "flex", alignItems: "center", justifyContent: "center",
-                      cursor: "grab", fontSize: 16, color: T.text4, background: `linear-gradient(90deg, ${T.bg}EE 80%, transparent)`,
-                      borderRadius: "12px 0 0 12px", touchAction: "none" }}>☰</div>
-                  </div>
-                )}
-                {editMode && (
-                  <button onClick={() => { if (confirm(`確定要刪除「${ex.name}」嗎？`)) onDelete(i); }} style={{
-                    position: "absolute", right: 6, top: 6, zIndex: 2, width: 26, height: 26, borderRadius: 13,
-                    border: "none", background: T.pinkLight, color: T.pink, fontSize: 12, cursor: "pointer",
-                    display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 1px 4px rgba(0,0,0,0.1)",
-                  }}>✕</button>
-                )}
-                <div style={{ paddingLeft: editMode ? 28 : 0, transition: "padding 0.2s" }}>
-                  <ExerciseCard exercise={ex} data={exerciseData[ex.name]} groupColor={groupColor}
-                    onUpdate={d => onUpdateExercise(ex.name, d)} />
-                </div>
-              </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            {exercises.map(ex => (
+              <ExerciseCard key={ex.name} exercise={ex} data={exerciseData[ex.name]}
+                groupColor={groupColor} checked={!!checkedExercises[ex.name]}
+                onToggle={() => onToggle(ex.name)}
+                onUpdate={d => onUpdateExercise(ex.name, d)} />
             ))}
           </div>
         </div>
@@ -632,6 +598,7 @@
       const [newGroupExercises, setNewGroupExercises] = useState("");
       const [saving, setSaving] = useState(false);
       const [exerciseOrder, setExerciseOrder] = useState({});
+      const [checkedExercises, setCheckedExercises] = useState({}); // { "槓鈴深蹲": true, ... }
 
       // ─── Load data from Firebase ───
       useEffect(() => {
@@ -726,7 +693,8 @@
         setTime(nowTimeStr());
         setLocCat(""); setLocSub(""); setPartner(""); setTrainType("");
         setMuscleGroup("臀腿"); setExerciseData({});
-        setExerciseOrder({}); // Reset to defaults for new workout
+        setExerciseOrder({});
+        setCheckedExercises({});
         setCardioType(""); setCardioDuration(""); setCardioCalories("");
         setNotes(""); setCustomLoc(""); setCustomPartner(""); setCustomCardio(""); setEditingLog(null);
         setRestActivities([]); setRestCondition("");
@@ -738,11 +706,12 @@
           const loc = locSub === "__custom" ? customLoc : `${locCat} · ${locSub}`;
           const p = partner === "__custom" ? customPartner : partner;
 
-          // Include ALL displayed exercises (preset + custom), not just ones with sets
+          // Save only checked exercises
           const allExercises = {};
           if (trainType === "重訓") {
             const displayedList = getOrderedExercises(muscleGroup);
             displayedList.forEach(ex => {
+              if (!checkedExercises[ex.name]) return; // skip unchecked
               const data = exerciseData[ex.name];
               if (data && data.sets?.length > 0) {
                 allExercises[ex.name] = data;
@@ -1047,14 +1016,24 @@
                     )}
 
                     <div style={{ marginBottom: 16 }}>
-                      <DraggableExerciseList
+                      <CheckableExerciseList
                         exercises={getOrderedExercises(muscleGroup)}
                         exerciseData={exerciseData}
+                        checkedExercises={checkedExercises}
                         groupColor={allMuscleGroups[muscleGroup]?.color || T.teal}
                         onUpdateExercise={(name, d) => setExerciseData(p => ({ ...p, [name]: d }))}
-                        onReorder={(arr) => updateSessionOrder(muscleGroup, arr)}
-                        onDelete={(idx) => { const c = getOrderedExercises(muscleGroup).filter((_, i) => i !== idx); updateSessionOrder(muscleGroup, c); }}
-                        onAddExercise={(ex) => updateSessionOrder(muscleGroup, [...getOrderedExercises(muscleGroup), ex])}
+                        onToggle={(name) => setCheckedExercises(p => ({ ...p, [name]: !p[name] }))}
+                        onToggleAll={() => {
+                          const list = getOrderedExercises(muscleGroup);
+                          const allChecked = list.every(ex => checkedExercises[ex.name]);
+                          const updated = { ...checkedExercises };
+                          list.forEach(ex => { updated[ex.name] = !allChecked; });
+                          setCheckedExercises(updated);
+                        }}
+                        onAddExercise={(ex) => {
+                          updateSessionOrder(muscleGroup, [...getOrderedExercises(muscleGroup), ex]);
+                          setCheckedExercises(p => ({ ...p, [ex.name]: true }));
+                        }}
                       />
                     </div>
                   </>
