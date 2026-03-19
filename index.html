@@ -710,14 +710,18 @@
           const allExercises = {};
           if (trainType === "重訓") {
             const displayedList = getOrderedExercises(muscleGroup);
+            console.log("[Save Debug] checked:", JSON.stringify(checkedExercises));
+            console.log("[Save Debug] displayed:", displayedList.map(e => e.name));
             displayedList.forEach(ex => {
-              if (!checkedExercises[ex.name]) return; // skip unchecked
-              const data = exerciseData[ex.name];
-              if (data && data.sets?.length > 0) {
-                allExercises[ex.name] = data;
-              } else {
-                allExercises[ex.name] = { sets: [{ weight: "", reps: "" }], unit: "kg" };
+              if (!checkedExercises[ex.name]) {
+                console.log("[Save Debug] SKIP (unchecked):", ex.name);
+                return;
               }
+              console.log("[Save Debug] SAVE:", ex.name);
+              const data = exerciseData[ex.name];
+              allExercises[ex.name] = (data && data.sets?.length > 0)
+                ? data
+                : { sets: [{ weight: "", reps: "" }], unit: "kg" };
             });
           }
           const logData = {
