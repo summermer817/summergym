@@ -32,42 +32,9 @@
     input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
     input[type="number"] { -moz-appearance: textfield; }
     ::-webkit-scrollbar { display: none; }
-
-    /* Instant splash screen — renders before ANY JS loads */
-    #splash {
-      position: fixed; inset: 0; z-index: 9999;
-      background: linear-gradient(135deg, #FF6B2C, #FF8F55, #FFB088);
-      display: flex; flex-direction: column;
-      align-items: center; justify-content: center; gap: 16px;
-      transition: opacity 0.4s, visibility 0.4s;
-    }
-    #splash.hidden { opacity: 0; visibility: hidden; pointer-events: none; }
-    #splash .emoji { font-size: 56px; animation: bounce 1s ease infinite; }
-    #splash .title { color: #fff; font-size: 22px; font-weight: 800; letter-spacing: -0.5px; }
-    #splash .dots { display: flex; gap: 6px; }
-    #splash .dots span {
-      width: 8px; height: 8px; border-radius: 4px; background: rgba(255,255,255,0.5);
-      animation: pulse 1.2s ease infinite;
-    }
-    #splash .dots span:nth-child(2) { animation-delay: 0.2s; }
-    #splash .dots span:nth-child(3) { animation-delay: 0.4s; }
-    @keyframes bounce {
-      0%, 100% { transform: translateY(0); }
-      50% { transform: translateY(-10px); }
-    }
-    @keyframes pulse {
-      0%, 100% { opacity: 0.3; transform: scale(1); }
-      50% { opacity: 1; transform: scale(1.3); }
-    }
   </style>
 </head>
 <body>
-  <!-- Instant splash: visible immediately, no JS needed -->
-  <div id="splash">
-    <div class="emoji">💪</div>
-    <div class="title">Summer's Gym</div>
-    <div class="dots"><span></span><span></span><span></span></div>
-  </div>
   <div id="root"></div>
 
   <script>
@@ -330,18 +297,19 @@
     }
 
     // ─── Draggable Exercise List ───
-    function DraggableExerciseList({ exercises, exerciseData, groupColor, onUpdateExercise, onReorder, onDelete, onAddExercise }) {
+    function DraggableExerciseList({ exercises, exerciseData, groupColor, onUpdateExercise, onReorder, onDelete }) {
       const [dragIdx, setDragIdx] = useState(null);
       const [overIdx, setOverIdx] = useState(null);
+      const [touchStartY, setTouchStartY] = useState(null);
       const [editMode, setEditMode] = useState(false);
-      const [showAddEx, setShowAddEx] = useState(false);
-      const [newExName, setNewExName] = useState("");
-      const [newExIcon, setNewExIcon] = useState("🔹");
       const listRef = React.useRef(null);
 
       const handleDragStart = (i) => (e) => {
         setDragIdx(i);
-        if (e.dataTransfer) { e.dataTransfer.effectAllowed = "move"; e.dataTransfer.setData("text/plain", i); }
+        if (e.dataTransfer) {
+          e.dataTransfer.effectAllowed = "move";
+          e.dataTransfer.setData("text/plain", i);
+        }
       };
       const handleDragOver = (i) => (e) => { e.preventDefault(); setOverIdx(i); };
       const handleDragEnd = () => {
@@ -354,24 +322,24 @@
         setDragIdx(null); setOverIdx(null);
       };
 
-      const handleTouchStart = (i) => (e) => { setDragIdx(i); };
+      // Touch drag
+      const touchItemRefs = React.useRef([]);
+      const handleTouchStart = (i) => (e) => {
+        setDragIdx(i);
+        setTouchStartY(e.touches[0].clientY);
+      };
       const handleTouchMove = (e) => {
         if (dragIdx === null || !listRef.current) return;
         const y = e.touches[0].clientY;
         const items = listRef.current.children;
         for (let j = 0; j < items.length; j++) {
           const rect = items[j].getBoundingClientRect();
-          if (y >= rect.top && y <= rect.bottom) { setOverIdx(j); break; }
+          if (y >= rect.top && y <= rect.bottom) {
+            setOverIdx(j); break;
+          }
         }
       };
-      const handleTouchEnd = () => { handleDragEnd(); };
-
-      const doAddExercise = () => {
-        if (!newExName.trim()) return;
-        if (exercises.some(e => e.name === newExName.trim())) { alert("此動作已存在！"); return; }
-        onAddExercise({ name: newExName.trim(), icon: newExIcon || "🔹", _custom: true });
-        setNewExName(""); setNewExIcon("🔹"); setShowAddEx(false);
-      };
+      const handleTouchEnd = () => { handleDragEnd(); setTouchStartY(null); };
 
       return (
         <div>
@@ -379,57 +347,14 @@
             <span style={{ fontSize: 12, color: T.text4 }}>
               {editMode ? "拖拽 ☰ 排序，點 ✕ 刪除" : `共 ${exercises.length} 個動作`}
             </span>
-            <div style={{ display: "flex", gap: 6 }}>
-              <button onClick={() => setShowAddEx(!showAddEx)} style={{
-                padding: "4px 10px", borderRadius: 8, fontSize: 11, fontWeight: 600,
-                border: `1.5px solid ${showAddEx ? groupColor : T.sep}`,
-                background: showAddEx ? `${groupColor}12` : T.white,
-                color: showAddEx ? groupColor : T.text3,
-                cursor: "pointer", fontFamily: T.font,
-              }}>{showAddEx ? "✕ 取消" : "+ 新增動作"}</button>
-              <button onClick={() => { setEditMode(!editMode); setShowAddEx(false); }} style={{
-                padding: "4px 10px", borderRadius: 8, fontSize: 11, fontWeight: 600,
-                border: `1.5px solid ${editMode ? T.accent : T.sep}`,
-                background: editMode ? T.accentLight : T.white,
-                color: editMode ? T.accent : T.text3,
-                cursor: "pointer", fontFamily: T.font,
-              }}>{editMode ? "✓ 完成" : "✎ 編輯"}</button>
-            </div>
+            <button onClick={() => setEditMode(!editMode)} style={{
+              padding: "4px 12px", borderRadius: 8, fontSize: 11, fontWeight: 600,
+              border: `1.5px solid ${editMode ? T.accent : T.sep}`,
+              background: editMode ? T.accentLight : T.white,
+              color: editMode ? T.accent : T.text3,
+              cursor: "pointer", fontFamily: T.font,
+            }}>{editMode ? "✓ 完成" : "✎ 編輯順序"}</button>
           </div>
-
-          {showAddEx && (
-            <div style={{
-              background: T.white, borderRadius: T.radiusSm, padding: 14, marginBottom: 10,
-              border: `2px dashed ${groupColor}40`,
-            }}>
-              <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                <input value={newExIcon} onChange={e => setNewExIcon(e.target.value)}
-                  style={{
-                    width: 42, height: 42, borderRadius: 10, border: `1.5px solid ${T.sep}`,
-                    background: `${groupColor}10`, textAlign: "center", fontSize: 18,
-                    outline: "none", fontFamily: T.font,
-                  }} />
-                <input placeholder="輸入動作名稱" value={newExName}
-                  onChange={e => setNewExName(e.target.value)}
-                  onKeyDown={e => e.key === "Enter" && doAddExercise()}
-                  style={{
-                    flex: 1, padding: "10px 14px", borderRadius: 10,
-                    border: `1.5px solid ${T.sep}`, background: T.white,
-                    color: T.text, fontSize: 14, fontFamily: T.font, outline: "none",
-                  }} />
-                <button onClick={doAddExercise} style={{
-                  padding: "10px 14px", borderRadius: 10, border: "none",
-                  background: groupColor, color: "#fff", fontSize: 13,
-                  fontWeight: 600, cursor: "pointer", fontFamily: T.font,
-                  whiteSpace: "nowrap", boxShadow: `0 2px 8px ${groupColor}40`,
-                }}>加入</button>
-              </div>
-              <div style={{ fontSize: 11, color: T.text4, marginTop: 6, paddingLeft: 50 }}>
-                左邊可自訂 emoji 圖示，例如 💪🏋️🔹
-              </div>
-            </div>
-          )}
-
           <div ref={listRef}
             onTouchMove={editMode ? handleTouchMove : undefined}
             onTouchEnd={editMode ? handleTouchEnd : undefined}
@@ -448,10 +373,11 @@
                     ? `translateY(${dragIdx < i ? -4 : 4}px)` : "none",
                   transition: "transform 0.15s, opacity 0.15s",
                 }}>
+                {/* Edit mode overlay: drag handle + delete */}
                 {editMode && (
                   <div style={{
                     position: "absolute", left: 0, top: 0, bottom: 0, zIndex: 2,
-                    display: "flex", alignItems: "center",
+                    display: "flex", alignItems: "center", gap: 0,
                   }}>
                     <div style={{
                       width: 32, height: "100%", display: "flex", alignItems: "center",
@@ -622,6 +548,7 @@
         locations: { "健身工廠": [], "單次健身房": [] },
         partners: [], cardioTypes: [], muscleGroups: {},
       });
+      const [weather, setWeather] = useState({ temp: "--", desc: "載入中", icon: "⏳", hum: "--" });
       const [editingLog, setEditingLog] = useState(null);
       const [detailLog, setDetailLog] = useState(null);
       const [calDate, setCalDate] = useState(new Date().toISOString().slice(0, 10));
@@ -668,6 +595,23 @@
           }
           setLoading(false);
         })();
+        // Fetch weather
+        if (navigator.geolocation) {
+          navigator.geolocation.getCurrentPosition(async (pos) => {
+            try {
+              const { latitude: lat, longitude: lon } = pos.coords;
+              const r = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,relative_humidity_2m,weather_code`);
+              const d = await r.json();
+              const c = d.current;
+              const code = c.weather_code;
+              const desc = code <= 3 ? (code === 0 ? "晴" : "多雲") : code < 60 ? "陰" : code < 70 ? "雨" : "雷雨";
+              const icon = code <= 1 ? "☀️" : code <= 3 ? "⛅" : code < 60 ? "☁️" : code < 70 ? "🌧️" : "⛈️";
+              setWeather({ temp: Math.round(c.temperature_2m), desc, icon, hum: c.relative_humidity_2m });
+            } catch { setWeather({ temp: 26, desc: "晴", icon: "☀️", hum: 65 }); }
+          }, () => setWeather({ temp: 26, desc: "晴", icon: "☀️", hum: 65 }));
+        } else {
+          setWeather({ temp: 26, desc: "晴", icon: "☀️", hum: 65 });
+        }
       }, []);
 
       const customColors = [T.teal, T.pink, T.indigo, T.orange];
@@ -713,12 +657,6 @@
       const handleDeleteExercise = async (groupName, index) => {
         const current = getOrderedExercises(groupName);
         const updated = current.filter((_, i) => i !== index);
-        await handleReorderExercises(groupName, updated);
-      };
-
-      const handleAddExercise = async (groupName, newEx) => {
-        const current = getOrderedExercises(groupName);
-        const updated = [...current, newEx];
         await handleReorderExercises(groupName, updated);
       };
 
@@ -781,7 +719,7 @@
           });
           const logData = {
             date, time, location: loc, partner: p,
-            trainingType: trainType,
+            trainingType: trainType, weather: { ...weather },
             muscleGroup: trainType === "重訓" ? muscleGroup : null,
             exercises: trainType === "重訓" ? filled : null,
             cardio: trainType === "有氧" ? { type: cardioType === "__custom" ? customCardio : cardioType, duration: cardioDuration, calories: cardioCalories } : null,
@@ -816,7 +754,7 @@
         const isRest = log.trainingType === "休息日";
         const t = isRest ? `😴 休息日${log.restDay?.condition ? ` ${log.restDay.condition}` : ""}` : `🏋️ ${log.trainingType}${log.muscleGroup ? ` - ${log.muscleGroup}` : ""}`;
         const s = `${log.date.replace(/-/g, "")}T${log.time.replace(":", "")}00`;
-        const d = isRest ? `休息日` : `地點：${log.location}\n夥伴：${log.partner}`;
+        const d = isRest ? `休息日\n天氣：${log.weather.icon} ${log.weather.temp}°C` : `地點：${log.location}\n夥伴：${log.partner}\n天氣：${log.weather.icon} ${log.weather.temp}°C`;
         window.open(`https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(t)}&dates=${s}/${s}&details=${encodeURIComponent(d)}&location=${encodeURIComponent(log.location || "")}`, "_blank");
       };
 
@@ -891,18 +829,12 @@
       };
 
       // ─── Loading Screen ───
-      // Dismiss splash screen once React is ready
-      useEffect(() => {
-        if (!loading) {
-          const splash = document.getElementById("splash");
-          if (splash) {
-            splash.classList.add("hidden");
-            setTimeout(() => splash.remove(), 500);
-          }
-        }
-      }, [loading]);
-
-      if (loading) return null; // splash screen handles the visual
+      if (loading) return (
+        <div style={{ maxWidth: 430, margin: "0 auto", minHeight: "100vh", background: T.bg, display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 12 }}>
+          <div style={{ fontSize: 48 }}>💪</div>
+          <div style={{ color: T.text3, fontSize: 14 }}>載入中...</div>
+        </div>
+      );
 
       return (
         <div style={{ maxWidth: 430, margin: "0 auto", minHeight: "100vh", background: T.bg, fontFamily: T.font, color: T.text }}>
@@ -925,6 +857,13 @@
                         <p style={{ color: "rgba(255,255,255,0.85)", fontSize: 13, margin: "4px 0 0" }}>
                           {new Date().toLocaleDateString("zh-TW", { month: "long", day: "numeric", weekday: "long" })}
                         </p>
+                      </div>
+                      <div style={{ background: "rgba(255,255,255,0.2)", borderRadius: 14, padding: "8px 12px", backdropFilter: "blur(10px)", display: "flex", alignItems: "center", gap: 6 }}>
+                        <span style={{ fontSize: 22 }}>{weather.icon}</span>
+                        <div>
+                          <div style={{ fontSize: 15, fontWeight: 700, color: "#fff" }}>{weather.temp}°C</div>
+                          <div style={{ fontSize: 10, color: "rgba(255,255,255,0.7)" }}>{weather.desc}</div>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -975,9 +914,13 @@
 
                 <SectionLabel>📅 日期與時間</SectionLabel>
                 <Card style={{ marginBottom: 16, padding: 14 }}>
-                  <div style={{ display: "flex", gap: 10 }}>
+                  <div style={{ display: "flex", gap: 10, marginBottom: 8 }}>
                     <Input type="date" value={date} onChange={e => setDate(e.target.value)} style={{ flex: 1 }} />
                     <Input type="time" value={time} onChange={e => setTime(e.target.value)} style={{ width: 120 }} />
+                  </div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: T.text3 }}>
+                    {weather.icon} {weather.temp}°C · {weather.desc} · 濕度{weather.hum}%
+                    <span style={{ color: T.green, fontSize: 10, fontWeight: 600 }}>自動帶入</span>
                   </div>
                 </Card>
 
@@ -1078,7 +1021,6 @@
                         onUpdateExercise={(name, d) => setExerciseData(p => ({ ...p, [name]: d }))}
                         onReorder={(newOrder) => handleReorderExercises(muscleGroup, newOrder)}
                         onDelete={(idx) => handleDeleteExercise(muscleGroup, idx)}
-                        onAddExercise={(ex) => handleAddExercise(muscleGroup, ex)}
                       />
                     </div>
                   </>
@@ -1226,6 +1168,10 @@
                           <div style={{ fontSize: 20, fontWeight: 800 }}>{log.trainingType}{log.muscleGroup ? ` · ${log.muscleGroup}` : ""}</div>
                           <div style={{ fontSize: 13, color: T.text3, marginTop: 2 }}>{log.date} {log.time}</div>
                         </div>
+                      </div>
+                      <div style={{ textAlign: "right" }}>
+                        <div style={{ fontSize: 28 }}>{log.weather?.icon}</div>
+                        <div style={{ fontSize: 12, color: T.text3 }}>{log.weather?.temp}°C</div>
                       </div>
                     </div>
                     <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
