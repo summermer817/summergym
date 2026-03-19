@@ -622,7 +622,6 @@
         locations: { "健身工廠": [], "單次健身房": [] },
         partners: [], cardioTypes: [], muscleGroups: {},
       });
-      const [weather, setWeather] = useState({ temp: "--", desc: "載入中", icon: "⏳", hum: "--" });
       const [editingLog, setEditingLog] = useState(null);
       const [detailLog, setDetailLog] = useState(null);
       const [calDate, setCalDate] = useState(new Date().toISOString().slice(0, 10));
@@ -669,23 +668,6 @@
           }
           setLoading(false);
         })();
-        // Fetch weather
-        if (navigator.geolocation) {
-          navigator.geolocation.getCurrentPosition(async (pos) => {
-            try {
-              const { latitude: lat, longitude: lon } = pos.coords;
-              const r = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,relative_humidity_2m,weather_code`);
-              const d = await r.json();
-              const c = d.current;
-              const code = c.weather_code;
-              const desc = code <= 3 ? (code === 0 ? "晴" : "多雲") : code < 60 ? "陰" : code < 70 ? "雨" : "雷雨";
-              const icon = code <= 1 ? "☀️" : code <= 3 ? "⛅" : code < 60 ? "☁️" : code < 70 ? "🌧️" : "⛈️";
-              setWeather({ temp: Math.round(c.temperature_2m), desc, icon, hum: c.relative_humidity_2m });
-            } catch { setWeather({ temp: 26, desc: "晴", icon: "☀️", hum: 65 }); }
-          }, () => setWeather({ temp: 26, desc: "晴", icon: "☀️", hum: 65 }));
-        } else {
-          setWeather({ temp: 26, desc: "晴", icon: "☀️", hum: 65 });
-        }
       }, []);
 
       const customColors = [T.teal, T.pink, T.indigo, T.orange];
@@ -799,7 +781,7 @@
           });
           const logData = {
             date, time, location: loc, partner: p,
-            trainingType: trainType, weather: { ...weather },
+            trainingType: trainType,
             muscleGroup: trainType === "重訓" ? muscleGroup : null,
             exercises: trainType === "重訓" ? filled : null,
             cardio: trainType === "有氧" ? { type: cardioType === "__custom" ? customCardio : cardioType, duration: cardioDuration, calories: cardioCalories } : null,
@@ -834,7 +816,7 @@
         const isRest = log.trainingType === "休息日";
         const t = isRest ? `😴 休息日${log.restDay?.condition ? ` ${log.restDay.condition}` : ""}` : `🏋️ ${log.trainingType}${log.muscleGroup ? ` - ${log.muscleGroup}` : ""}`;
         const s = `${log.date.replace(/-/g, "")}T${log.time.replace(":", "")}00`;
-        const d = isRest ? `休息日\n天氣：${log.weather.icon} ${log.weather.temp}°C` : `地點：${log.location}\n夥伴：${log.partner}\n天氣：${log.weather.icon} ${log.weather.temp}°C`;
+        const d = isRest ? `休息日` : `地點：${log.location}\n夥伴：${log.partner}`;
         window.open(`https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(t)}&dates=${s}/${s}&details=${encodeURIComponent(d)}&location=${encodeURIComponent(log.location || "")}`, "_blank");
       };
 
@@ -944,13 +926,6 @@
                           {new Date().toLocaleDateString("zh-TW", { month: "long", day: "numeric", weekday: "long" })}
                         </p>
                       </div>
-                      <div style={{ background: "rgba(255,255,255,0.2)", borderRadius: 14, padding: "8px 12px", backdropFilter: "blur(10px)", display: "flex", alignItems: "center", gap: 6 }}>
-                        <span style={{ fontSize: 22 }}>{weather.icon}</span>
-                        <div>
-                          <div style={{ fontSize: 15, fontWeight: 700, color: "#fff" }}>{weather.temp}°C</div>
-                          <div style={{ fontSize: 10, color: "rgba(255,255,255,0.7)" }}>{weather.desc}</div>
-                        </div>
-                      </div>
                     </div>
                   </div>
                 </div>
@@ -1000,13 +975,9 @@
 
                 <SectionLabel>📅 日期與時間</SectionLabel>
                 <Card style={{ marginBottom: 16, padding: 14 }}>
-                  <div style={{ display: "flex", gap: 10, marginBottom: 8 }}>
+                  <div style={{ display: "flex", gap: 10 }}>
                     <Input type="date" value={date} onChange={e => setDate(e.target.value)} style={{ flex: 1 }} />
                     <Input type="time" value={time} onChange={e => setTime(e.target.value)} style={{ width: 120 }} />
-                  </div>
-                  <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: T.text3 }}>
-                    {weather.icon} {weather.temp}°C · {weather.desc} · 濕度{weather.hum}%
-                    <span style={{ color: T.green, fontSize: 10, fontWeight: 600 }}>自動帶入</span>
                   </div>
                 </Card>
 
@@ -1255,10 +1226,6 @@
                           <div style={{ fontSize: 20, fontWeight: 800 }}>{log.trainingType}{log.muscleGroup ? ` · ${log.muscleGroup}` : ""}</div>
                           <div style={{ fontSize: 13, color: T.text3, marginTop: 2 }}>{log.date} {log.time}</div>
                         </div>
-                      </div>
-                      <div style={{ textAlign: "right" }}>
-                        <div style={{ fontSize: 28 }}>{log.weather?.icon}</div>
-                        <div style={{ fontSize: 12, color: T.text3 }}>{log.weather?.temp}°C</div>
                       </div>
                     </div>
                     <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
