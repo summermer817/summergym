@@ -710,14 +710,8 @@
           const allExercises = {};
           if (trainType === "重訓") {
             const displayedList = getOrderedExercises(muscleGroup);
-            console.log("[Save Debug] checked:", JSON.stringify(checkedExercises));
-            console.log("[Save Debug] displayed:", displayedList.map(e => e.name));
             displayedList.forEach(ex => {
-              if (!checkedExercises[ex.name]) {
-                console.log("[Save Debug] SKIP (unchecked):", ex.name);
-                return;
-              }
-              console.log("[Save Debug] SAVE:", ex.name);
+              if (!checkedExercises[ex.name]) return;
               const data = exerciseData[ex.name];
               allExercises[ex.name] = (data && data.sets?.length > 0)
                 ? data
@@ -780,14 +774,6 @@
       const todayTW = todayStr();
       const thisMonthTW = todayTW.slice(0, 7);
       const weekMonday = weekMondayStr();
-
-      // Debug: check in DevTools console (F12) if dates look right
-      useEffect(() => {
-        if (logs.length > 0) {
-          console.log("[Gym Debug] today:", todayTW, "| weekMonday:", weekMonday, "| thisMonth:", thisMonthTW);
-          console.log("[Gym Debug] first 5 log dates:", logs.slice(0, 5).map(l => l.date));
-        }
-      }, [logs]);
 
       const weekLogs = logs.filter(l => l.date >= weekMonday && l.date <= todayTW);
       const monthLogs = logs.filter(l => l.date && l.date.startsWith(thisMonthTW));
