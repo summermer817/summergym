@@ -312,6 +312,119 @@
       );
     }
 
+    // ─── Draggable Exercise List ───
+    function DraggableExerciseList({ exercises, exerciseData, groupColor, onUpdateExercise, onReorder, onDelete, onAddExercise }) {
+      const [dragIdx, setDragIdx] = useState(null);
+      const [overIdx, setOverIdx] = useState(null);
+      const [editMode, setEditMode] = useState(false);
+      const [showAdd, setShowAdd] = useState(false);
+      const [newName, setNewName] = useState("");
+      const [newIcon, setNewIcon] = useState("🔹");
+      const listRef = React.useRef(null);
+
+      const onDragStart = (i) => (e) => { setDragIdx(i); e.dataTransfer.effectAllowed = "move"; };
+      const onDragOver = (i) => (e) => { e.preventDefault(); setOverIdx(i); };
+      const onDragEnd = () => {
+        if (dragIdx !== null && overIdx !== null && dragIdx !== overIdx) {
+          const a = [...exercises]; const [m] = a.splice(dragIdx, 1); a.splice(overIdx, 0, m); onReorder(a);
+        }
+        setDragIdx(null); setOverIdx(null);
+      };
+      const onTouchStart = (i) => () => setDragIdx(i);
+      const onTouchMove = (e) => {
+        if (dragIdx === null || !listRef.current) return;
+        const y = e.touches[0].clientY;
+        Array.from(listRef.current.children).forEach((el, j) => {
+          const r = el.getBoundingClientRect();
+          if (y >= r.top && y <= r.bottom) setOverIdx(j);
+        });
+      };
+
+      const doAdd = () => {
+        if (!newName.trim()) return;
+        if (exercises.some(e => e.name === newName.trim())) { alert("此動作已存在！"); return; }
+        onAddExercise({ name: newName.trim(), icon: newIcon || "🔹", _custom: true });
+        setNewName(""); setNewIcon("🔹"); setShowAdd(false);
+      };
+
+      return (
+        <div>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+            <span style={{ fontSize: 12, color: T.text4 }}>
+              {editMode ? "拖拽 ☰ 排序・點 ✕ 刪除" : `共 ${exercises.length} 個動作`}
+            </span>
+            <div style={{ display: "flex", gap: 6 }}>
+              <button onClick={() => { setShowAdd(!showAdd); setEditMode(false); }} style={{
+                padding: "4px 10px", borderRadius: 8, fontSize: 11, fontWeight: 600,
+                border: `1.5px solid ${showAdd ? groupColor : T.sep}`,
+                background: showAdd ? `${groupColor}12` : T.white,
+                color: showAdd ? groupColor : T.text3, cursor: "pointer", fontFamily: T.font,
+              }}>{showAdd ? "✕ 取消" : "+ 新增動作"}</button>
+              <button onClick={() => { setEditMode(!editMode); setShowAdd(false); }} style={{
+                padding: "4px 10px", borderRadius: 8, fontSize: 11, fontWeight: 600,
+                border: `1.5px solid ${editMode ? T.accent : T.sep}`,
+                background: editMode ? T.accentLight : T.white,
+                color: editMode ? T.accent : T.text3, cursor: "pointer", fontFamily: T.font,
+              }}>{editMode ? "✓ 完成" : "✎ 編輯"}</button>
+            </div>
+          </div>
+          {showAdd && (
+            <div style={{ background: T.white, borderRadius: T.radiusSm, padding: 14, marginBottom: 10, border: `2px dashed ${groupColor}40` }}>
+              <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                <input value={newIcon} onChange={e => setNewIcon(e.target.value)} style={{
+                  width: 42, height: 42, borderRadius: 10, border: `1.5px solid ${T.sep}`,
+                  background: `${groupColor}10`, textAlign: "center", fontSize: 18, outline: "none", fontFamily: T.font,
+                }} />
+                <input placeholder="輸入動作名稱" value={newName} onChange={e => setNewName(e.target.value)}
+                  onKeyDown={e => e.key === "Enter" && doAdd()}
+                  style={{ flex: 1, padding: "10px 14px", borderRadius: 10, border: `1.5px solid ${T.sep}`, background: T.white, color: T.text, fontSize: 14, fontFamily: T.font, outline: "none" }} />
+                <button onClick={doAdd} style={{
+                  padding: "10px 14px", borderRadius: 10, border: "none", background: groupColor,
+                  color: "#fff", fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: T.font,
+                  whiteSpace: "nowrap", boxShadow: `0 2px 8px ${groupColor}40`,
+                }}>加入</button>
+              </div>
+              <div style={{ fontSize: 11, color: T.text4, marginTop: 6, paddingLeft: 50 }}>左邊可自訂 emoji 圖示</div>
+            </div>
+          )}
+          <div ref={listRef} onTouchMove={editMode ? onTouchMove : undefined} onTouchEnd={editMode ? onDragEnd : undefined}
+            style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {exercises.map((ex, i) => (
+              <div key={ex.name} draggable={editMode}
+                onDragStart={editMode ? onDragStart(i) : undefined}
+                onDragOver={editMode ? onDragOver(i) : undefined}
+                onDragEnd={editMode ? onDragEnd : undefined}
+                onTouchStart={editMode ? onTouchStart(i) : undefined}
+                style={{
+                  position: "relative", opacity: dragIdx === i ? 0.5 : 1,
+                  transform: overIdx === i && dragIdx !== null && dragIdx !== i ? `translateY(${dragIdx < i ? -4 : 4}px)` : "none",
+                  transition: "transform 0.15s, opacity 0.15s",
+                }}>
+                {editMode && (
+                  <div style={{ position: "absolute", left: 0, top: 0, bottom: 0, zIndex: 2, display: "flex", alignItems: "center" }}>
+                    <div style={{ width: 32, height: "100%", display: "flex", alignItems: "center", justifyContent: "center",
+                      cursor: "grab", fontSize: 16, color: T.text4, background: `linear-gradient(90deg, ${T.bg}EE 80%, transparent)`,
+                      borderRadius: "12px 0 0 12px", touchAction: "none" }}>☰</div>
+                  </div>
+                )}
+                {editMode && (
+                  <button onClick={() => { if (confirm(`確定要刪除「${ex.name}」嗎？`)) onDelete(i); }} style={{
+                    position: "absolute", right: 6, top: 6, zIndex: 2, width: 26, height: 26, borderRadius: 13,
+                    border: "none", background: T.pinkLight, color: T.pink, fontSize: 12, cursor: "pointer",
+                    display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 1px 4px rgba(0,0,0,0.1)",
+                  }}>✕</button>
+                )}
+                <div style={{ paddingLeft: editMode ? 28 : 0, transition: "padding 0.2s" }}>
+                  <ExerciseCard exercise={ex} data={exerciseData[ex.name]} groupColor={groupColor}
+                    onUpdate={d => onUpdateExercise(ex.name, d)} />
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      );
+    }
+
     // ─── Calendar ───
     function CalendarView({ logs, onSelectDate, selectedDate, allMuscleGroups }) {
       const [viewDate, setViewDate] = useState(new Date());
@@ -476,6 +589,7 @@
       const [newGroupIcon, setNewGroupIcon] = useState("⭐");
       const [newGroupExercises, setNewGroupExercises] = useState("");
       const [saving, setSaving] = useState(false);
+      const [exerciseOrder, setExerciseOrder] = useState({});
 
       // ─── Load data from Firebase ───
       useEffect(() => {
@@ -486,7 +600,10 @@
               window.DB.getCustom(),
             ]);
             setLogs(logsData || []);
-            if (customData) setCustom(customData);
+            if (customData) {
+              setCustom(customData);
+              if (customData.exerciseOrder) setExerciseOrder(customData.exerciseOrder);
+            }
           } catch (err) {
             console.error("Firebase load error:", err);
           }
@@ -513,6 +630,30 @@
       const allLocations = (cat) => [...(LOCATIONS[cat] || []), ...(custom.locations?.[cat] || [])];
       const allPartners = [...PARTNERS, ...(custom.partners || [])];
       const allCardioTypes = [...CARDIO_TYPES, ...(custom.cardioTypes || [])];
+
+      // Exercise order management
+      const getOrderedExercises = (groupName) => {
+        const defaults = allMuscleGroups[groupName]?.exercises || [];
+        const saved = exerciseOrder[groupName];
+        if (!saved) return defaults;
+        return saved.filter(co => defaults.some(d => d.name === co.name) || co._custom);
+      };
+
+      const saveExerciseOrder = async (groupName, newOrder) => {
+        const updated = { ...exerciseOrder, [groupName]: newOrder };
+        setExerciseOrder(updated);
+        const c = JSON.parse(JSON.stringify(custom));
+        c.exerciseOrder = updated;
+        setCustom(c);
+        await window.DB.saveCustom(c);
+      };
+
+      // Init order for current group if not set
+      useEffect(() => {
+        if (muscleGroup && !exerciseOrder[muscleGroup] && allMuscleGroups[muscleGroup]) {
+          setExerciseOrder(prev => ({ ...prev, [muscleGroup]: [...(allMuscleGroups[muscleGroup].exercises || [])] }));
+        }
+      }, [muscleGroup, allMuscleGroups]);
 
       const addCustom = async (type, val) => {
         if (!val.trim()) return;
@@ -849,12 +990,16 @@
                       </Card>
                     )}
 
-                    <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 16 }}>
-                      {(allMuscleGroups[muscleGroup]?.exercises || []).map(ex => (
-                        <ExerciseCard key={ex.name} exercise={ex} data={exerciseData[ex.name]}
-                          groupColor={allMuscleGroups[muscleGroup]?.color || T.teal}
-                          onUpdate={d => setExerciseData(p => ({ ...p, [ex.name]: d }))} />
-                      ))}
+                    <div style={{ marginBottom: 16 }}>
+                      <DraggableExerciseList
+                        exercises={getOrderedExercises(muscleGroup)}
+                        exerciseData={exerciseData}
+                        groupColor={allMuscleGroups[muscleGroup]?.color || T.teal}
+                        onUpdateExercise={(name, d) => setExerciseData(p => ({ ...p, [name]: d }))}
+                        onReorder={(arr) => saveExerciseOrder(muscleGroup, arr)}
+                        onDelete={(idx) => { const c = getOrderedExercises(muscleGroup).filter((_, i) => i !== idx); saveExerciseOrder(muscleGroup, c); }}
+                        onAddExercise={(ex) => saveExerciseOrder(muscleGroup, [...getOrderedExercises(muscleGroup), ex])}
+                      />
                     </div>
                   </>
                 )}
