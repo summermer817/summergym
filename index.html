@@ -736,15 +736,25 @@
         try {
           const loc = locSub === "__custom" ? customLoc : `${locCat} · ${locSub}`;
           const p = partner === "__custom" ? customPartner : partner;
-          const filled = {};
-          Object.entries(exerciseData).forEach(([k, v]) => {
-            if (v.sets?.length > 0) filled[k] = v;
-          });
+
+          // Include ALL displayed exercises (preset + custom), not just ones with sets
+          const allExercises = {};
+          if (trainType === "重訓") {
+            const displayedList = getOrderedExercises(muscleGroup);
+            displayedList.forEach(ex => {
+              const data = exerciseData[ex.name];
+              if (data && data.sets?.length > 0) {
+                allExercises[ex.name] = data;
+              } else {
+                allExercises[ex.name] = { sets: [{ weight: "", reps: "" }], unit: "kg" };
+              }
+            });
+          }
           const logData = {
             date, time, location: loc, partner: p,
             trainingType: trainType,
             muscleGroup: trainType === "重訓" ? muscleGroup : null,
-            exercises: trainType === "重訓" ? filled : null,
+            exercises: trainType === "重訓" ? allExercises : null,
             cardio: trainType === "有氧" ? { type: cardioType === "__custom" ? customCardio : cardioType, duration: cardioDuration, calories: cardioCalories } : null,
             restDay: trainType === "休息日" ? { activities: restActivities, condition: restCondition } : null,
             notes,
