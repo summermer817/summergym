@@ -673,6 +673,7 @@
       const allCardioTypes = [...CARDIO_TYPES, ...(custom.cardioTypes || [])];
 
       // Exercise order: session-only (resets to defaults each new workout)
+      // Session exercise order: reflects current drag/delete/add state
       const getOrderedExercises = (groupName) => {
         const defaults = allMuscleGroups[groupName]?.exercises || [];
         const session = exerciseOrder[groupName];
@@ -684,9 +685,9 @@
         setExerciseOrder(prev => ({ ...prev, [groupName]: newOrder }));
       };
 
-      // Init session order from defaults when switching muscle group
+      // Eagerly init when switching muscle group (so save always has data)
       useEffect(() => {
-        if (muscleGroup && !exerciseOrder[muscleGroup] && allMuscleGroups[muscleGroup]) {
+        if (muscleGroup && allMuscleGroups[muscleGroup] && !exerciseOrder[muscleGroup]) {
           setExerciseOrder(prev => ({ ...prev, [muscleGroup]: [...(allMuscleGroups[muscleGroup].exercises || [])] }));
         }
       }, [muscleGroup, allMuscleGroups]);
