@@ -186,6 +186,52 @@
       },
     };
 
+    // 減脂 Fit 課表
+    const FIT_MUSCLE_GROUPS = {
+      "背部": {
+        color: T.blue, light: T.blueLight, icon: "🔙",
+        exercises: [
+          { name: "槓鈴划船", icon: "🚣" },
+          { name: "滑輪下拉+坐姿划船(超級組)", icon: "🔥" },
+          { name: "引體向上(或輔助)", icon: "⬆️" },
+          { name: "直臂下壓", icon: "🫸" },
+          { name: "有氧 15-40分鐘", icon: "🏃" },
+        ],
+      },
+      "下半身": {
+        color: T.accent, light: T.accentLight, icon: "🦵",
+        exercises: [
+          { name: "槓鈴深蹲", icon: "🏋️" },
+          { name: "槓鈴RDL", icon: "💪" },
+          { name: "保加利亞分腿蹲", icon: "🔔" },
+          { name: "臀推", icon: "🍑" },
+          { name: "羅馬椅挺身", icon: "🪑" },
+          { name: "結尾循環(深蹲跳/弓箭步/臀橋)", icon: "🔄" },
+          { name: "有氧 15-40分鐘", icon: "🏃" },
+        ],
+      },
+      "胸部": {
+        color: T.green, light: T.greenLight, icon: "💚",
+        exercises: [
+          { name: "槓鈴臥推", icon: "🛏️" },
+          { name: "上胸推(啞鈴/機械)", icon: "🔼" },
+          { name: "Cable夾胸", icon: "🦋" },
+          { name: "三頭肌下壓", icon: "💪" },
+          { name: "有氧 15-40分鐘", icon: "🏃" },
+        ],
+      },
+      "肩+全身代謝": {
+        color: T.purple, light: T.purpleLight, icon: "🔥",
+        exercises: [
+          { name: "槓鈴肩推", icon: "🔝" },
+          { name: "啞鈴側平舉", icon: "🐦" },
+          { name: "Cable後飛鳥", icon: "🦅" },
+          { name: "Cable臉拉", icon: "😤" },
+          { name: "代謝循環(壺鈴擺盪/伏地挺身/自重深蹲)", icon: "🔄" },
+        ],
+      },
+    };
+
     const LOCATIONS = {
       "健身工廠": ["土城廠", "板橋廠", "中山北廠"],
       "單次健身房": ["BYF", "morefit", "專心練"],
@@ -497,13 +543,14 @@
                   {has && (
                     <div style={{ display: "flex", gap: 1, position: "absolute", bottom: 3 }}>
                       {c.logs.slice(0, 3).map((log, j) => {
-                        const mg = allMuscleGroups[log.muscleGroup];
+                        const mg = allMuscleGroups[log.muscleGroup] || FIT_MUSCLE_GROUPS[log.muscleGroup];
                         const isC = log.trainingType === "有氧";
                         const isR = log.trainingType === "休息日";
+                        const isFit = log.trainingType === "減脂Fit";
                         return (
                           <div key={j} style={{
                             width: sel ? 7 : 6, height: sel ? 7 : 6, borderRadius: 4,
-                            background: sel ? "#fff" : isR ? T.teal : isC ? T.yellow : mg?.color || T.teal,
+                            background: sel ? "#fff" : isR ? T.teal : isC ? T.yellow : isFit ? (mg?.color || T.pink) : mg?.color || T.teal,
                           }} />
                         );
                       })}
@@ -526,6 +573,10 @@
             <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
               <div style={{ width: 8, height: 8, borderRadius: 4, background: T.yellow }} />
               <span style={{ fontSize: 11, color: T.text3 }}>🏃 有氧</span>
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+              <div style={{ width: 8, height: 8, borderRadius: 4, background: T.pink }} />
+              <span style={{ fontSize: 11, color: T.text3 }}>🔥 減脂Fit</span>
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
               <div style={{ width: 8, height: 8, borderRadius: 4, background: T.teal }} />
@@ -635,6 +686,18 @@
         return m;
       }, [custom]);
 
+      // Switch muscle group set based on training type
+      const currentGroups = trainType === "減脂Fit" ? FIT_MUSCLE_GROUPS : allMuscleGroups;
+
+      // Auto-set first muscle group when switching training type
+      useEffect(() => {
+        const groups = trainType === "減脂Fit" ? FIT_MUSCLE_GROUPS : allMuscleGroups;
+        const keys = Object.keys(groups);
+        if (keys.length > 0 && !groups[muscleGroup]) {
+          setMuscleGroup(keys[0]);
+        }
+      }, [trainType]);
+
       const allLocations = (cat) => [...(LOCATIONS[cat] || []), ...(custom.locations?.[cat] || [])];
       const allPartners = [...PARTNERS, ...(custom.partners || [])];
       const allCardioTypes = [...CARDIO_TYPES, ...(custom.cardioTypes || [])];
@@ -642,7 +705,7 @@
       // Exercise order: session-only (resets to defaults each new workout)
       // Session exercise order: reflects current drag/delete/add state
       const getOrderedExercises = (groupName) => {
-        const defaults = allMuscleGroups[groupName]?.exercises || [];
+        const defaults = currentGroups[groupName]?.exercises || [];
         const session = exerciseOrder[groupName];
         if (!session) return defaults;
         return session;
@@ -652,12 +715,11 @@
         setExerciseOrder(prev => ({ ...prev, [groupName]: newOrder }));
       };
 
-      // Eagerly init when switching muscle group (so save always has data)
       useEffect(() => {
-        if (muscleGroup && allMuscleGroups[muscleGroup] && !exerciseOrder[muscleGroup]) {
-          setExerciseOrder(prev => ({ ...prev, [muscleGroup]: [...(allMuscleGroups[muscleGroup].exercises || [])] }));
+        if (muscleGroup && currentGroups[muscleGroup] && !exerciseOrder[muscleGroup]) {
+          setExerciseOrder(prev => ({ ...prev, [muscleGroup]: [...(currentGroups[muscleGroup].exercises || [])] }));
         }
-      }, [muscleGroup, allMuscleGroups]);
+      }, [muscleGroup, currentGroups]);
 
       const addCustom = async (type, val) => {
         if (!val.trim()) return;
@@ -706,9 +768,11 @@
           const loc = locSub === "__custom" ? customLoc : `${locCat} · ${locSub}`;
           const p = partner === "__custom" ? customPartner : partner;
 
+          const isWeightType = trainType === "重訓" || trainType === "減脂Fit";
+
           // Save only checked exercises
           const allExercises = {};
-          if (trainType === "重訓") {
+          if (isWeightType) {
             const displayedList = getOrderedExercises(muscleGroup);
             displayedList.forEach(ex => {
               if (!checkedExercises[ex.name]) return;
@@ -721,8 +785,8 @@
           const logData = {
             date, time, location: loc, partner: p,
             trainingType: trainType,
-            muscleGroup: trainType === "重訓" ? muscleGroup : null,
-            exercises: trainType === "重訓" ? allExercises : null,
+            muscleGroup: isWeightType ? muscleGroup : null,
+            exercises: isWeightType ? allExercises : null,
             cardio: trainType === "有氧" ? { type: cardioType === "__custom" ? customCardio : cardioType, duration: cardioDuration, calories: cardioCalories } : null,
             restDay: trainType === "休息日" ? { activities: restActivities, condition: restCondition } : null,
             notes,
@@ -797,7 +861,7 @@
       ];
 
       const LogRow = ({ log }) => {
-        const mg = allMuscleGroups[log.muscleGroup];
+        const mg = allMuscleGroups[log.muscleGroup] || FIT_MUSCLE_GROUPS[log.muscleGroup];
         const isCardio = log.trainingType === "有氧";
         const isRest = log.trainingType === "休息日";
         return (
@@ -920,6 +984,7 @@
                 <Card style={{ marginBottom: 16, padding: 14 }}>
                   <div style={chipRow}>
                     <Pill label="💪 重訓" active={trainType === "重訓"} onClick={() => setTrainType("重訓")} color={T.accent} />
+                    <Pill label="🔥 減脂Fit" active={trainType === "減脂Fit"} onClick={() => setTrainType("減脂Fit")} color={T.pink} />
                     <Pill label="🏃 有氧" active={trainType === "有氧"} onClick={() => setTrainType("有氧")} color={T.orange} />
                     <Pill label="😴 休息日" active={trainType === "休息日"} onClick={() => setTrainType("休息日")} color={T.teal} />
                   </div>
@@ -960,11 +1025,11 @@
                   </Card>
                 </>)}
 
-                {trainType === "重訓" && (
+                {(trainType === "重訓" || trainType === "減脂Fit") && (
                   <>
-                    <SectionLabel>💪 訓練部位</SectionLabel>
+                    <SectionLabel>{trainType === "減脂Fit" ? "🔥 減脂部位" : "💪 訓練部位"}</SectionLabel>
                     <div style={{ display: "flex", gap: 6, marginBottom: 12, overflowX: "auto", paddingBottom: 4 }}>
-                      {Object.entries(allMuscleGroups).map(([name, g]) => (
+                      {Object.entries(currentGroups).map(([name, g]) => (
                         <button key={name} onClick={() => setMuscleGroup(name)} style={{
                           padding: "8px 14px", borderRadius: 12, border: "none",
                           background: muscleGroup === name ? g.color : T.white,
@@ -977,15 +1042,17 @@
                           <span style={{ fontSize: 14 }}>{g.icon}</span> {name}
                         </button>
                       ))}
-                      <button onClick={() => setShowAddGroup(true)} style={{
-                        padding: "8px 14px", borderRadius: 12,
-                        border: `2px dashed ${T.sep}`, background: T.white,
-                        color: T.text3, fontSize: 13, fontWeight: 500, cursor: "pointer",
-                        fontFamily: T.font, whiteSpace: "nowrap",
-                      }}>+ 自訂部位</button>
+                      {trainType === "重訓" && (
+                        <button onClick={() => setShowAddGroup(true)} style={{
+                          padding: "8px 14px", borderRadius: 12,
+                          border: `2px dashed ${T.sep}`, background: T.white,
+                          color: T.text3, fontSize: 13, fontWeight: 500, cursor: "pointer",
+                          fontFamily: T.font, whiteSpace: "nowrap",
+                        }}>+ 自訂部位</button>
+                      )}
                     </div>
 
-                    {showAddGroup && (
+                    {showAddGroup && trainType === "重訓" && (
                       <Card style={{ marginBottom: 14, padding: 16, border: `2px solid ${T.accent}30` }}>
                         <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 12, color: T.accent }}>新增自訂部位</div>
                         <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
@@ -1010,7 +1077,7 @@
                         exercises={getOrderedExercises(muscleGroup)}
                         exerciseData={exerciseData}
                         checkedExercises={checkedExercises}
-                        groupColor={allMuscleGroups[muscleGroup]?.color || T.teal}
+                        groupColor={currentGroups[muscleGroup]?.color || T.teal}
                         onUpdateExercise={(name, d) => setExerciseData(p => ({ ...p, [name]: d }))}
                         onToggle={(name) => setCheckedExercises(p => ({ ...p, [name]: !p[name] }))}
                         onToggleAll={() => {
@@ -1144,7 +1211,7 @@
             {/* ═══ DETAIL ═══ */}
             {view === "detail" && detailLog && (() => {
               const log = detailLog;
-              const mg = allMuscleGroups[log.muscleGroup];
+              const mg = allMuscleGroups[log.muscleGroup] || FIT_MUSCLE_GROUPS[log.muscleGroup];
               const isCardio = log.trainingType === "有氧";
               const isRest = log.trainingType === "休息日";
               const logVol = log.exercises ? Object.values(log.exercises).reduce((s, ex) => s + (ex.sets || []).reduce((ss, set) => {
