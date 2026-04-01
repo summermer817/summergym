@@ -647,6 +647,12 @@
       const [bodyWeight, setBodyWeight] = useState("");
       const [bodyFat, setBodyFat] = useState("");
       const [muscleMass, setMuscleMass] = useState("");
+      // Trend chart
+      const [trendFrom, setTrendFrom] = useState(() => {
+        const d = new Date(); d.setMonth(d.getMonth() - 1);
+        return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+      });
+      const [trendTo, setTrendTo] = useState(todayStr());
       const [showAddGroup, setShowAddGroup] = useState(false);
       const [newGroupName, setNewGroupName] = useState("");
       const [newGroupIcon, setNewGroupIcon] = useState("⭐");
@@ -1296,12 +1302,6 @@
 
             {/* ═══ TREND ═══ */}
             {view === "trend" && (() => {
-              const [trendFrom, setTrendFrom] = useState(() => {
-                const d = new Date(); d.setMonth(d.getMonth() - 1);
-                return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
-              });
-              const [trendTo, setTrendTo] = useState(todayStr());
-
               const bodyLogs = logs
                 .filter(l => l.body && (l.body.weight || l.body.fat || l.body.muscle) && l.date >= trendFrom && l.date <= trendTo)
                 .sort((a, b) => a.date.localeCompare(b.date));
