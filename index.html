@@ -527,6 +527,7 @@
             {cells.map((c, i) => {
               const sel = c.dateStr === selectedDate;
               const has = c.logs?.length > 0;
+              const bodyLog = c.logs?.find(l => l.body?.weight);
               return (
                 <div key={i} onClick={() => c.dateStr && onSelectDate(c.dateStr)} style={{
                   aspectRatio: "1", borderRadius: 12,
@@ -540,17 +541,22 @@
                     fontSize: 13, fontWeight: c.today || sel ? 700 : 400,
                     color: sel ? "#fff" : c.today ? T.accent : T.text,
                   }}>{c.day}</span>
+                  {bodyLog && (
+                    <span style={{
+                      fontSize: 7, fontWeight: 600, position: "absolute", top: 2,
+                      color: sel ? "#fff" : T.indigo, lineHeight: 1,
+                    }}>{bodyLog.body.weight}</span>
+                  )}
                   {has && (
                     <div style={{ display: "flex", gap: 1, position: "absolute", bottom: 3 }}>
                       {c.logs.slice(0, 3).map((log, j) => {
                         const mg = allMuscleGroups[log.muscleGroup] || FIT_MUSCLE_GROUPS[log.muscleGroup];
                         const isC = log.trainingType === "有氧";
-                        const isR = log.trainingType === "休息日";
                         const isFit = log.trainingType === "減脂Fit";
                         return (
                           <div key={j} style={{
                             width: sel ? 7 : 6, height: sel ? 7 : 6, borderRadius: 4,
-                            background: sel ? "#fff" : isR ? T.teal : isC ? T.yellow : isFit ? (mg?.color || T.pink) : mg?.color || T.teal,
+                            background: sel ? "#fff" : isC ? T.yellow : isFit ? (mg?.color || T.pink) : mg?.color || T.teal,
                           }} />
                         );
                       })}
@@ -577,10 +583,6 @@
             <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
               <div style={{ width: 8, height: 8, borderRadius: 4, background: T.pink }} />
               <span style={{ fontSize: 11, color: T.text3 }}>🔥 減脂Fit</span>
-            </div>
-            <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-              <div style={{ width: 8, height: 8, borderRadius: 4, background: T.teal }} />
-              <span style={{ fontSize: 11, color: T.text3 }}>😴 休息日</span>
             </div>
           </div>
         </Card>
@@ -641,8 +643,10 @@
       const [cardioDuration, setCardioDuration] = useState("");
       const [cardioCalories, setCardioCalories] = useState("");
       const [notes, setNotes] = useState("");
-      const [restActivities, setRestActivities] = useState([]);
-      const [restCondition, setRestCondition] = useState("");
+      // Body stats
+      const [bodyWeight, setBodyWeight] = useState("");
+      const [bodyFat, setBodyFat] = useState("");
+      const [muscleMass, setMuscleMass] = useState("");
       const [showAddGroup, setShowAddGroup] = useState(false);
       const [newGroupName, setNewGroupName] = useState("");
       const [newGroupIcon, setNewGroupIcon] = useState("⭐");
@@ -759,7 +763,7 @@
         setCheckedExercises({});
         setCardioType(""); setCardioDuration(""); setCardioCalories("");
         setNotes(""); setCustomLoc(""); setCustomPartner(""); setCustomCardio(""); setEditingLog(null);
-        setRestActivities([]); setRestCondition("");
+        setBodyWeight(""); setBodyFat(""); setMuscleMass("");
       };
 
       const saveWorkout = async () => {
@@ -788,7 +792,7 @@
             muscleGroup: isWeightType ? muscleGroup : null,
             exercises: isWeightType ? allExercises : null,
             cardio: trainType === "有氧" ? { type: cardioType === "__custom" ? customCardio : cardioType, duration: cardioDuration, calories: cardioCalories } : null,
-            restDay: trainType === "休息日" ? { activities: restActivities, condition: restCondition } : null,
+            body: (bodyWeight || bodyFat || muscleMass) ? { weight: bodyWeight, fat: bodyFat, muscle: muscleMass } : null,
             notes,
           };
 
@@ -816,10 +820,10 @@
       };
 
       const syncCal = (log) => {
-        const isRest = log.trainingType === "休息日";
-        const t = isRest ? `😴 休息日${log.restDay?.condition ? ` ${log.restDay.condition}` : ""}` : `🏋️ ${log.trainingType}${log.muscleGroup ? ` - ${log.muscleGroup}` : ""}`;
+        const t = `🏋️ ${log.trainingType}${log.muscleGroup ? ` - ${log.muscleGroup}` : ""}`;
         const s = `${log.date.replace(/-/g, "")}T${log.time.replace(":", "")}00`;
-        const d = isRest ? `休息日` : `地點：${log.location}\n夥伴：${log.partner}`;
+        let d = `地點：${log.location}\n夥伴：${log.partner}`;
+        if (log.body) d += `\n體重：${log.body.weight || "-"}kg 體脂：${log.body.fat || "-"}% 肌肉量：${log.body.muscle || "-"}kg`;
         window.open(`https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(t)}&dates=${s}/${s}&details=${encodeURIComponent(d)}&location=${encodeURIComponent(log.location || "")}`, "_blank");
       };
 
@@ -831,7 +835,7 @@
         if (log.muscleGroup) setMuscleGroup(log.muscleGroup);
         if (log.exercises) setExerciseData(log.exercises);
         if (log.cardio) { setCardioType(log.cardio.type); setCardioDuration(log.cardio.duration); setCardioCalories(log.cardio.calories); }
-        if (log.restDay) { setRestActivities(log.restDay.activities || []); setRestCondition(log.restDay.condition || ""); }
+        if (log.body) { setBodyWeight(log.body.weight || ""); setBodyFat(log.body.fat || ""); setMuscleMass(log.body.muscle || ""); }
         setNotes(log.notes || ""); setView("new");
       };
 
@@ -858,22 +862,22 @@
         { id: "home", icon: "🏠", label: "首頁" },
         { id: "new", icon: "✏️", label: "紀錄" },
         { id: "history", icon: "📅", label: "日曆" },
+        { id: "trend", icon: "📊", label: "趨勢" },
       ];
 
       const LogRow = ({ log }) => {
         const mg = allMuscleGroups[log.muscleGroup] || FIT_MUSCLE_GROUPS[log.muscleGroup];
         const isCardio = log.trainingType === "有氧";
-        const isRest = log.trainingType === "休息日";
         return (
           <Card onClick={() => { setDetailLog(log); setView("detail"); }} style={{ padding: "14px 16px", marginBottom: 8 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
               <div style={{
                 width: 44, height: 44, borderRadius: 14,
-                background: isRest ? T.tealLight : isCardio ? T.yellowLight : (mg?.light || T.tealLight),
+                background: isCardio ? T.yellowLight : (mg?.light || T.tealLight),
                 display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20, flexShrink: 0,
-              }}>{isRest ? "😴" : isCardio ? "🏃" : (mg?.icon || "🏋️")}</div>
+              }}>{isCardio ? "🏃" : (mg?.icon || "🏋️")}</div>
               <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
                   <span style={{ fontSize: 15, fontWeight: 600 }}>{log.trainingType}</span>
                   {log.muscleGroup && (
                     <span style={{ fontSize: 11, padding: "2px 8px", borderRadius: 6, background: mg?.light || T.tealLight, color: mg?.color || T.teal, fontWeight: 600 }}>{log.muscleGroup}</span>
@@ -881,10 +885,12 @@
                   {log.cardio?.type && (
                     <span style={{ fontSize: 11, padding: "2px 8px", borderRadius: 6, background: T.yellowLight, color: T.orange, fontWeight: 600 }}>{log.cardio.type}</span>
                   )}
-                  {isRest && log.restDay?.condition && <span style={{ fontSize: 14 }}>{log.restDay.condition}</span>}
+                  {log.body?.weight && (
+                    <span style={{ fontSize: 11, padding: "2px 8px", borderRadius: 6, background: T.indigoLight, color: T.indigo, fontWeight: 600 }}>⚖️ {log.body.weight}kg</span>
+                  )}
                 </div>
                 <div style={{ fontSize: 12, color: T.text3, marginTop: 3 }}>
-                  {log.date}{!isRest ? ` · ${log.location} · ${log.partner}` : (log.restDay?.activities?.length ? ` · ${log.restDay.activities.join("、")}` : "")}
+                  {log.date} · {log.location} · {log.partner}
                 </div>
               </div>
               <span style={{ color: T.text4, fontSize: 18 }}>›</span>
@@ -986,12 +992,10 @@
                     <Pill label="💪 重訓" active={trainType === "重訓"} onClick={() => setTrainType("重訓")} color={T.accent} />
                     <Pill label="🔥 減脂Fit" active={trainType === "減脂Fit"} onClick={() => setTrainType("減脂Fit")} color={T.pink} />
                     <Pill label="🏃 有氧" active={trainType === "有氧"} onClick={() => setTrainType("有氧")} color={T.orange} />
-                    <Pill label="😴 休息日" active={trainType === "休息日"} onClick={() => setTrainType("休息日")} color={T.teal} />
                   </div>
                 </Card>
 
-                {trainType !== "休息日" && (<>
-                  <SectionLabel>📍 地點</SectionLabel>
+                <SectionLabel>📍 地點</SectionLabel>
                   <Card style={{ marginBottom: 16, padding: 14 }}>
                     <div style={chipRow}>
                       {Object.keys(LOCATIONS).map(cat => <Pill key={cat} label={cat} active={locCat === cat} onClick={() => { setLocCat(cat); setLocSub(""); }} />)}
@@ -1023,7 +1027,6 @@
                       </div>
                     )}
                   </Card>
-                </>)}
 
                 {(trainType === "重訓" || trainType === "減脂Fit") && (
                   <>
@@ -1124,52 +1127,23 @@
                   </>
                 )}
 
-                {trainType === "休息日" && (
-                  <>
-                    <SectionLabel>😴 休息日紀錄</SectionLabel>
-                    <Card style={{ marginBottom: 16, padding: 14 }}>
-                      <div style={{ textAlign: "center", padding: "12px 0 16px" }}>
-                        <div style={{ fontSize: 40, marginBottom: 6 }}>🧘‍♀️</div>
-                        <div style={{ fontSize: 15, fontWeight: 600, color: T.text }}>今天好好休息</div>
-                        <div style={{ fontSize: 12, color: T.text3, marginTop: 4 }}>恢復也是訓練的一部分 💤</div>
-                      </div>
-                      <div style={{ fontSize: 12, fontWeight: 600, color: T.text3, marginBottom: 8 }}>休息活動（可多選）</div>
-                      <div style={chipRow}>
-                        {["完全休息", "拉伸放鬆", "散步", "按摩/筋膜放鬆", "瑜珈", "游泳"].map(act => (
-                          <Pill key={act} label={act}
-                            active={(restActivities || []).includes(act)}
-                            onClick={() => setRestActivities(prev => {
-                              const p = prev || [];
-                              return p.includes(act) ? p.filter(a => a !== act) : [...p, act];
-                            })}
-                            color={T.teal} />
-                        ))}
-                      </div>
-                      <div style={{ marginTop: 14 }}>
-                        <div style={{ fontSize: 12, fontWeight: 600, color: T.text3, marginBottom: 8 }}>身體狀態</div>
-                        <div style={{ display: "flex", gap: 6, justifyContent: "center" }}>
-                          {[
-                            { val: "😫", label: "很疲憊" }, { val: "😐", label: "普通" },
-                            { val: "😊", label: "不錯" }, { val: "💪", label: "很好" },
-                            { val: "🔥", label: "滿血復活" },
-                          ].map(s => (
-                            <button key={s.val} onClick={() => setRestCondition(s.val)} style={{
-                              width: 52, padding: "8px 0", borderRadius: 12, border: "none",
-                              background: restCondition === s.val ? T.tealLight : T.bg,
-                              cursor: "pointer", display: "flex", flexDirection: "column",
-                              alignItems: "center", gap: 2, transition: "all 0.2s",
-                              boxShadow: restCondition === s.val ? `0 2px 8px ${T.teal}30` : "none",
-                              outline: restCondition === s.val ? `2px solid ${T.teal}` : "none",
-                            }}>
-                              <span style={{ fontSize: 22 }}>{s.val}</span>
-                              <span style={{ fontSize: 9, color: T.text3, fontFamily: T.font }}>{s.label}</span>
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    </Card>
-                  </>
-                )}
+                <SectionLabel>⚖️ 體態紀錄（選填）</SectionLabel>
+                <Card style={{ marginBottom: 16, padding: 14 }}>
+                  <div style={{ display: "flex", gap: 10 }}>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: 11, color: T.text3, marginBottom: 4, fontWeight: 500 }}>體重 (kg)</div>
+                      <Input type="number" value={bodyWeight} onChange={e => setBodyWeight(e.target.value)} placeholder="65.0" style={{ textAlign: "center" }} />
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: 11, color: T.text3, marginBottom: 4, fontWeight: 500 }}>體脂率 (%)</div>
+                      <Input type="number" value={bodyFat} onChange={e => setBodyFat(e.target.value)} placeholder="20.0" style={{ textAlign: "center" }} />
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: 11, color: T.text3, marginBottom: 4, fontWeight: 500 }}>肌肉量 (kg)</div>
+                      <Input type="number" value={muscleMass} onChange={e => setMuscleMass(e.target.value)} placeholder="28.0" style={{ textAlign: "center" }} />
+                    </div>
+                  </div>
+                </Card>
 
                 <SectionLabel>📝 備註</SectionLabel>
                 <Card style={{ marginBottom: 20, padding: 14 }}>
@@ -1213,7 +1187,6 @@
               const log = detailLog;
               const mg = allMuscleGroups[log.muscleGroup] || FIT_MUSCLE_GROUPS[log.muscleGroup];
               const isCardio = log.trainingType === "有氧";
-              const isRest = log.trainingType === "休息日";
               const logVol = log.exercises ? Object.values(log.exercises).reduce((s, ex) => s + (ex.sets || []).reduce((ss, set) => {
                 const w = parseFloat(set.weight) || 0; const r = parseInt(set.reps) || 0;
                 return ss + (ex.unit === "lb" ? w * 0.453592 : w) * r;
@@ -1228,12 +1201,12 @@
 
                   <Card style={{
                     marginBottom: 16, padding: 20,
-                    background: `linear-gradient(135deg, ${isRest ? T.teal : isCardio ? T.yellow : (mg?.color || T.teal)}12, ${T.white})`,
-                    border: `1.5px solid ${isRest ? T.teal : isCardio ? T.yellow : (mg?.color || T.teal)}25`,
+                    background: `linear-gradient(135deg, ${isCardio ? T.yellow : (mg?.color || T.teal)}12, ${T.white})`,
+                    border: `1.5px solid ${isCardio ? T.yellow : (mg?.color || T.teal)}25`,
                   }}>
                     <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 14 }}>
                       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                        <span style={{ fontSize: 28 }}>{isRest ? "😴" : isCardio ? "🏃" : (mg?.icon || "🏋️")}</span>
+                        <span style={{ fontSize: 28 }}>{isCardio ? "🏃" : (mg?.icon || "🏋️")}</span>
                         <div>
                           <div style={{ fontSize: 20, fontWeight: 800 }}>{log.trainingType}{log.muscleGroup ? ` · ${log.muscleGroup}` : ""}</div>
                           <div style={{ fontSize: 13, color: T.text3, marginTop: 2 }}>{log.date} {log.time}</div>
@@ -1241,11 +1214,38 @@
                       </div>
                     </div>
                     <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                      {!isRest && log.location && <span style={{ padding: "5px 12px", borderRadius: 8, fontSize: 12, background: T.blueLight, color: T.blue, fontWeight: 500 }}>📍 {log.location}</span>}
-                      {!isRest && log.partner && <span style={{ padding: "5px 12px", borderRadius: 8, fontSize: 12, background: T.greenLight, color: T.green, fontWeight: 500 }}>👥 {log.partner}</span>}
+                      {log.location && <span style={{ padding: "5px 12px", borderRadius: 8, fontSize: 12, background: T.blueLight, color: T.blue, fontWeight: 500 }}>📍 {log.location}</span>}
+                      {log.partner && <span style={{ padding: "5px 12px", borderRadius: 8, fontSize: 12, background: T.greenLight, color: T.green, fontWeight: 500 }}>👥 {log.partner}</span>}
                       {logVol > 0 && <span style={{ padding: "5px 12px", borderRadius: 8, fontSize: 12, background: T.purpleLight, color: T.purple, fontWeight: 500 }}>📊 {logVol.toFixed(0)} kg</span>}
                     </div>
                   </Card>
+
+                  {/* Body stats */}
+                  {log.body && (log.body.weight || log.body.fat || log.body.muscle) && (
+                    <Card style={{ marginBottom: 16, padding: 14 }}>
+                      <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 10 }}>⚖️ 體態紀錄</div>
+                      <div style={{ display: "flex", gap: 10 }}>
+                        {log.body.weight && (
+                          <div style={{ flex: 1, padding: 10, borderRadius: 10, background: T.indigoLight, textAlign: "center" }}>
+                            <div style={{ fontSize: 20, fontWeight: 700, color: T.indigo }}>{log.body.weight}</div>
+                            <div style={{ fontSize: 11, color: T.text3 }}>體重 kg</div>
+                          </div>
+                        )}
+                        {log.body.fat && (
+                          <div style={{ flex: 1, padding: 10, borderRadius: 10, background: T.orangeLight, textAlign: "center" }}>
+                            <div style={{ fontSize: 20, fontWeight: 700, color: T.orange }}>{log.body.fat}</div>
+                            <div style={{ fontSize: 11, color: T.text3 }}>體脂 %</div>
+                          </div>
+                        )}
+                        {log.body.muscle && (
+                          <div style={{ flex: 1, padding: 10, borderRadius: 10, background: T.greenLight, textAlign: "center" }}>
+                            <div style={{ fontSize: 20, fontWeight: 700, color: T.green }}>{log.body.muscle}</div>
+                            <div style={{ fontSize: 11, color: T.text3 }}>肌肉量 kg</div>
+                          </div>
+                        )}
+                      </div>
+                    </Card>
+                  )}
 
                   {log.exercises && Object.keys(log.exercises).length > 0 && (
                     <>
@@ -1279,27 +1279,6 @@
                     </Card>
                   )}
 
-                  {log.restDay && (
-                    <Card style={{ marginBottom: 16, padding: 16 }}>
-                      <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 12 }}>😴 休息日紀錄</div>
-                      {log.restDay.condition && (
-                        <div style={{ textAlign: "center", padding: "12px 0 14px", marginBottom: log.restDay.activities?.length ? 12 : 0 }}>
-                          <span style={{ fontSize: 36 }}>{log.restDay.condition}</span>
-                          <div style={{ fontSize: 12, color: T.text3, marginTop: 4 }}>
-                            身體狀態：{({"😫":"很疲憊","😐":"普通","😊":"不錯","💪":"很好","🔥":"滿血復活"})[log.restDay.condition] || ""}
-                          </div>
-                        </div>
-                      )}
-                      {log.restDay.activities?.length > 0 && (
-                        <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                          {log.restDay.activities.map(a => (
-                            <span key={a} style={{ padding: "5px 12px", borderRadius: 8, fontSize: 12, background: T.tealLight, color: T.teal, fontWeight: 500 }}>{a}</span>
-                          ))}
-                        </div>
-                      )}
-                    </Card>
-                  )}
-
                   {log.notes && (
                     <Card style={{ marginBottom: 16, padding: 14 }}>
                       <div style={{ fontSize: 13, color: T.text2, lineHeight: 1.7 }}>📝 {log.notes}</div>
@@ -1314,6 +1293,135 @@
                 </div>
               );
             })()}
+
+            {/* ═══ TREND ═══ */}
+            {view === "trend" && (() => {
+              const [trendFrom, setTrendFrom] = useState(() => {
+                const d = new Date(); d.setMonth(d.getMonth() - 1);
+                return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+              });
+              const [trendTo, setTrendTo] = useState(todayStr());
+
+              const bodyLogs = logs
+                .filter(l => l.body && (l.body.weight || l.body.fat || l.body.muscle) && l.date >= trendFrom && l.date <= trendTo)
+                .sort((a, b) => a.date.localeCompare(b.date));
+
+              const chartW = 380, chartH = 180, padL = 40, padR = 16, padT = 16, padB = 28;
+              const innerW = chartW - padL - padR, innerH = chartH - padT - padB;
+
+              const drawLine = (data, color) => {
+                if (data.length < 2) return null;
+                const vals = data.map(d => d.v);
+                const min = Math.min(...vals), max = Math.max(...vals);
+                const range = max - min || 1;
+                const points = data.map((d, i) => {
+                  const x = padL + (i / (data.length - 1)) * innerW;
+                  const y = padT + innerH - ((d.v - min) / range) * innerH;
+                  return `${x},${y}`;
+                });
+                return { path: `M${points.join("L")}`, dots: data.map((d, i) => ({
+                  x: padL + (i / (data.length - 1)) * innerW,
+                  y: padT + innerH - ((d.v - min) / range) * innerH,
+                  label: d.v, date: d.date,
+                })), min, max };
+              };
+
+              const weightData = bodyLogs.filter(l => l.body.weight).map(l => ({ date: l.date, v: parseFloat(l.body.weight) }));
+              const fatData = bodyLogs.filter(l => l.body.fat).map(l => ({ date: l.date, v: parseFloat(l.body.fat) }));
+              const muscleData = bodyLogs.filter(l => l.body.muscle).map(l => ({ date: l.date, v: parseFloat(l.body.muscle) }));
+
+              const wLine = drawLine(weightData, T.indigo);
+              const fLine = drawLine(fatData, T.orange);
+              const mLine = drawLine(muscleData, T.green);
+
+              const renderChart = (title, emoji, line, color, unit) => {
+                if (!line) return (
+                  <Card style={{ marginBottom: 12, padding: 20, textAlign: "center" }}>
+                    <div style={{ color: T.text4, fontSize: 13 }}>{emoji} {title}：資料不足（需至少 2 筆）</div>
+                  </Card>
+                );
+                return (
+                  <Card style={{ marginBottom: 12, padding: "14px 8px" }}>
+                    <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8, paddingLeft: 8 }}>{emoji} {title}</div>
+                    <svg viewBox={`0 0 ${chartW} ${chartH}`} style={{ width: "100%", height: "auto" }}>
+                      {/* Y axis labels */}
+                      <text x={padL - 4} y={padT + 4} textAnchor="end" style={{ fontSize: 9, fill: T.text4 }}>{line.max.toFixed(1)}</text>
+                      <text x={padL - 4} y={padT + innerH + 4} textAnchor="end" style={{ fontSize: 9, fill: T.text4 }}>{line.min.toFixed(1)}</text>
+                      {/* Grid lines */}
+                      <line x1={padL} y1={padT} x2={padL + innerW} y2={padT} stroke={T.sep} strokeWidth={0.5} />
+                      <line x1={padL} y1={padT + innerH} x2={padL + innerW} y2={padT + innerH} stroke={T.sep} strokeWidth={0.5} />
+                      <line x1={padL} y1={padT + innerH/2} x2={padL + innerW} y2={padT + innerH/2} stroke={T.sep} strokeWidth={0.5} strokeDasharray="4" />
+                      {/* Line */}
+                      <path d={line.path} fill="none" stroke={color} strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" />
+                      {/* Dots + labels */}
+                      {line.dots.map((d, i) => (
+                        <g key={i}>
+                          <circle cx={d.x} cy={d.y} r={3.5} fill={color} />
+                          <circle cx={d.x} cy={d.y} r={6} fill={color} opacity={0.15} />
+                          {(i === 0 || i === line.dots.length - 1) && (
+                            <text x={d.x} y={d.y - 10} textAnchor="middle" style={{ fontSize: 9, fill: color, fontWeight: 700 }}>{d.label}{unit}</text>
+                          )}
+                          {/* X date labels (first and last) */}
+                          {(i === 0 || i === line.dots.length - 1) && (
+                            <text x={d.x} y={chartH - 4} textAnchor="middle" style={{ fontSize: 8, fill: T.text4 }}>{d.date.slice(5)}</text>
+                          )}
+                        </g>
+                      ))}
+                    </svg>
+                    {/* Change indicator */}
+                    {line.dots.length >= 2 && (() => {
+                      const first = line.dots[0].label, last = line.dots[line.dots.length - 1].label;
+                      const diff = (last - first).toFixed(1);
+                      const isUp = diff > 0;
+                      return (
+                        <div style={{ textAlign: "center", marginTop: 4, fontSize: 12, color: isUp ? T.pink : T.green, fontWeight: 600 }}>
+                          {isUp ? "▲" : "▼"} {Math.abs(diff)}{unit}（{line.dots[0].date.slice(5)} → {line.dots[line.dots.length-1].date.slice(5)}）
+                        </div>
+                      );
+                    })()}
+                  </Card>
+                );
+              };
+
+              return (
+                <div style={{ padding: "16px" }}>
+                  <h2 style={{ fontSize: 20, fontWeight: 700, margin: "0 0 16px" }}>📊 體態趨勢</h2>
+                  <Card style={{ marginBottom: 16, padding: 14 }}>
+                    <div style={{ fontSize: 12, fontWeight: 600, color: T.text3, marginBottom: 8 }}>選擇日期區間</div>
+                    <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+                      <Input type="date" value={trendFrom} onChange={e => setTrendFrom(e.target.value)} style={{ flex: 1 }} />
+                      <span style={{ color: T.text4, fontSize: 13 }}>→</span>
+                      <Input type="date" value={trendTo} onChange={e => setTrendTo(e.target.value)} style={{ flex: 1 }} />
+                    </div>
+                    <div style={{ display: "flex", gap: 6, marginTop: 10 }}>
+                      {[
+                        { label: "近1週", days: 7 }, { label: "近1月", days: 30 },
+                        { label: "近3月", days: 90 }, { label: "全部", days: 9999 },
+                      ].map(p => (
+                        <button key={p.label} onClick={() => {
+                          const d = new Date(); d.setDate(d.getDate() - p.days);
+                          setTrendFrom(p.days > 3000 ? "2020-01-01" : `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`);
+                          setTrendTo(todayStr());
+                        }} style={{
+                          flex: 1, padding: "6px", borderRadius: 8, border: `1.5px solid ${T.sep}`,
+                          background: T.white, color: T.text3, fontSize: 11, fontWeight: 600,
+                          cursor: "pointer", fontFamily: T.font,
+                        }}>{p.label}</button>
+                      ))}
+                    </div>
+                  </Card>
+
+                  <div style={{ fontSize: 12, color: T.text3, marginBottom: 10 }}>
+                    共 {bodyLogs.length} 筆體態紀錄
+                  </div>
+
+                  {renderChart("體重", "⚖️", wLine, T.indigo, "kg")}
+                  {renderChart("體脂率", "🔥", fLine, T.orange, "%")}
+                  {renderChart("肌肉量", "💪", mLine, T.green, "kg")}
+                </div>
+              );
+            })()}
+
           </div>
 
           {/* Nav */}
