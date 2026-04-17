@@ -258,6 +258,35 @@
       }}>{label}</button>
     );
 
+    const EditableTag = ({ value, color, light, onEdit, onDelete }) => {
+      const [editing, setEditing] = useState(false);
+      const [val, setVal] = useState(value);
+      const commit = () => {
+        if (val.trim() && val !== value) onEdit(val.trim());
+        setEditing(false);
+      };
+      if (editing) {
+        return (
+          <div style={{ display: "flex", alignItems: "center", gap: 4, padding: "2px 4px", background: T.white, borderRadius: 20, border: `1.5px solid ${color}` }}>
+            <input autoFocus value={val} onChange={e => setVal(e.target.value)}
+              onKeyDown={e => { if (e.key === "Enter") commit(); if (e.key === "Escape") { setVal(value); setEditing(false); } }}
+              onBlur={commit}
+              style={{ border: "none", outline: "none", fontSize: 13, padding: "4px 8px", width: Math.max(60, val.length * 14), background: "transparent", fontFamily: T.font, color: T.text }} />
+          </div>
+        );
+      }
+      return (
+        <div style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "5px 4px 5px 12px", background: light, borderRadius: 20, border: `1px solid ${color}30` }}>
+          <span onClick={() => setEditing(true)} style={{ fontSize: 13, color, fontWeight: 500, cursor: "pointer" }}>{value}</span>
+          <button onClick={onDelete} style={{
+            width: 20, height: 20, borderRadius: 10, border: "none",
+            background: `${color}25`, color, fontSize: 10, cursor: "pointer",
+            display: "flex", alignItems: "center", justifyContent: "center", fontFamily: T.font,
+          }}>✕</button>
+        </div>
+      );
+    };
+
     const Card = ({ children, style = {}, onClick }) => (
       <div onClick={onClick} style={{
         background: T.card, borderRadius: T.radius, padding: 16,
@@ -760,6 +789,40 @@
         setNewGroupName(""); setNewGroupIcon("⭐"); setNewGroupExercises(""); setShowAddGroup(false);
       };
 
+      // Delete custom item
+      const deleteCustom = async (type, val, cat) => {
+        const c = JSON.parse(JSON.stringify(custom));
+        if (type === "loc") {
+          if (c.locations?.[cat]) c.locations[cat] = c.locations[cat].filter(v => v !== val);
+        } else if (type === "partner") {
+          c.partners = (c.partners || []).filter(v => v !== val);
+        } else if (type === "cardio") {
+          c.cardioTypes = (c.cardioTypes || []).filter(v => v !== val);
+        } else if (type === "muscleGroup") {
+          delete c.muscleGroups?.[val];
+        }
+        setCustom(c);
+        await window.DB.saveCustom(c);
+      };
+
+      // Edit custom item (rename)
+      const editCustom = async (type, oldVal, newVal, cat) => {
+        if (!newVal.trim() || oldVal === newVal) return;
+        const c = JSON.parse(JSON.stringify(custom));
+        if (type === "loc" && c.locations?.[cat]) {
+          c.locations[cat] = c.locations[cat].map(v => v === oldVal ? newVal : v);
+        } else if (type === "partner") {
+          c.partners = (c.partners || []).map(v => v === oldVal ? newVal : v);
+        } else if (type === "cardio") {
+          c.cardioTypes = (c.cardioTypes || []).map(v => v === oldVal ? newVal : v);
+        } else if (type === "muscleGroup" && c.muscleGroups?.[oldVal]) {
+          c.muscleGroups[newVal] = c.muscleGroups[oldVal];
+          delete c.muscleGroups[oldVal];
+        }
+        setCustom(c);
+        await window.DB.saveCustom(c);
+      };
+
       const resetForm = () => {
         setDate(todayStr());
         setTime(nowTimeStr());
@@ -937,6 +1000,12 @@
                           {new Date().toLocaleDateString("zh-TW", { month: "long", day: "numeric", weekday: "long" })}
                         </p>
                       </div>
+                      <button onClick={() => setView("settings")} style={{
+                        width: 40, height: 40, borderRadius: 20, border: "none",
+                        background: "rgba(255,255,255,0.25)", color: "#fff",
+                        cursor: "pointer", fontSize: 18, backdropFilter: "blur(10px)",
+                        display: "flex", alignItems: "center", justifyContent: "center",
+                      }}>⚙️</button>
                     </div>
                   </div>
                 </div>
@@ -1299,6 +1368,104 @@
                 </div>
               );
             })()}
+
+            {/* ═══ SETTINGS ═══ */}
+            {view === "settings" && (
+              <div style={{ padding: "16px" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 20 }}>
+                  <button onClick={() => setView("home")} style={{ width: 36, height: 36, borderRadius: 12, border: "none", background: T.white, boxShadow: T.shadowSm, cursor: "pointer", fontSize: 18, display: "flex", alignItems: "center", justifyContent: "center" }}>‹</button>
+                  <h2 style={{ fontSize: 20, fontWeight: 700, margin: 0 }}>⚙️ 自訂標籤管理</h2>
+                </div>
+
+                <div style={{ fontSize: 12, color: T.text3, marginBottom: 16, lineHeight: 1.6 }}>
+                  點擊標籤可編輯名稱，點擊 ✕ 刪除。刪除不會影響已存在的紀錄。
+                </div>
+
+                {/* Custom Locations */}
+                <SectionLabel>📍 自訂地點</SectionLabel>
+                {Object.keys(LOCATIONS).map(cat => {
+                  const items = custom.locations?.[cat] || [];
+                  return (
+                    <Card key={cat} style={{ marginBottom: 10, padding: 14 }}>
+                      <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8, color: T.text2 }}>{cat}</div>
+                      {items.length === 0 ? (
+                        <div style={{ fontSize: 12, color: T.text4, fontStyle: "italic" }}>尚無自訂項目</div>
+                      ) : (
+                        <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                          {items.map(v => (
+                            <EditableTag key={v} value={v} color={T.blue} light={T.blueLight}
+                              onEdit={(n) => editCustom("loc", v, n, cat)}
+                              onDelete={() => { if (confirm(`刪除「${v}」？`)) deleteCustom("loc", v, cat); }} />
+                          ))}
+                        </div>
+                      )}
+                    </Card>
+                  );
+                })}
+
+                {/* Custom Partners */}
+                <SectionLabel>👥 自訂夥伴</SectionLabel>
+                <Card style={{ marginBottom: 10, padding: 14 }}>
+                  {(custom.partners || []).length === 0 ? (
+                    <div style={{ fontSize: 12, color: T.text4, fontStyle: "italic" }}>尚無自訂項目</div>
+                  ) : (
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                      {(custom.partners || []).map(v => (
+                        <EditableTag key={v} value={v} color={T.green} light={T.greenLight}
+                          onEdit={(n) => editCustom("partner", v, n)}
+                          onDelete={() => { if (confirm(`刪除「${v}」？`)) deleteCustom("partner", v); }} />
+                      ))}
+                    </div>
+                  )}
+                </Card>
+
+                {/* Custom Cardio */}
+                <SectionLabel>🏃 自訂有氧類型</SectionLabel>
+                <Card style={{ marginBottom: 10, padding: 14 }}>
+                  {(custom.cardioTypes || []).length === 0 ? (
+                    <div style={{ fontSize: 12, color: T.text4, fontStyle: "italic" }}>尚無自訂項目</div>
+                  ) : (
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                      {(custom.cardioTypes || []).map(v => (
+                        <EditableTag key={v} value={v} color={T.orange} light={T.orangeLight}
+                          onEdit={(n) => editCustom("cardio", v, n)}
+                          onDelete={() => { if (confirm(`刪除「${v}」？`)) deleteCustom("cardio", v); }} />
+                      ))}
+                    </div>
+                  )}
+                </Card>
+
+                {/* Custom Muscle Groups */}
+                <SectionLabel>💪 自訂訓練部位</SectionLabel>
+                <Card style={{ marginBottom: 10, padding: 14 }}>
+                  {Object.keys(custom.muscleGroups || {}).length === 0 ? (
+                    <div style={{ fontSize: 12, color: T.text4, fontStyle: "italic" }}>尚無自訂部位</div>
+                  ) : (
+                    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                      {Object.entries(custom.muscleGroups || {}).map(([name, g]) => (
+                        <div key={name} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 10px", background: T.bg, borderRadius: 10 }}>
+                          <span style={{ fontSize: 18 }}>{g.icon || "⭐"}</span>
+                          <div style={{ flex: 1 }}>
+                            <div style={{ fontSize: 14, fontWeight: 600 }}>{name}</div>
+                            <div style={{ fontSize: 11, color: T.text3, marginTop: 2 }}>{(g.exercises || []).length} 個動作</div>
+                          </div>
+                          <button onClick={() => {
+                            const newName = prompt(`重新命名「${name}」：`, name);
+                            if (newName && newName !== name) editCustom("muscleGroup", name, newName);
+                          }} style={{ padding: "5px 10px", borderRadius: 8, border: `1.5px solid ${T.sep}`, background: T.white, color: T.text3, fontSize: 11, cursor: "pointer", fontFamily: T.font }}>✎ 改名</button>
+                          <button onClick={() => { if (confirm(`刪除部位「${name}」及其所有動作？`)) deleteCustom("muscleGroup", name); }} style={{ padding: "5px 10px", borderRadius: 8, border: "none", background: T.pinkLight, color: T.pink, fontSize: 11, cursor: "pointer", fontFamily: T.font, fontWeight: 600 }}>✕ 刪除</button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </Card>
+
+                <div style={{ fontSize: 11, color: T.text4, textAlign: "center", marginTop: 20, lineHeight: 1.6 }}>
+                  預設標籤（健身工廠、BYF、自主、與大皮、跑步...等）無法刪除<br/>
+                  只能管理你自己新增的自訂項目
+                </div>
+              </div>
+            )}
 
             {/* ═══ TREND ═══ */}
             {view === "trend" && (() => {
