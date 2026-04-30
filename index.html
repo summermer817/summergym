@@ -914,6 +914,9 @@
 
       const weekLogs = logs.filter(l => l.date >= weekMonday && l.date <= todayTW);
       const monthLogs = logs.filter(l => l.date && l.date.startsWith(thisMonthTW));
+      const monthWeight = monthLogs.filter(l => l.trainingType === "重訓").length;
+      const monthFit = monthLogs.filter(l => l.trainingType === "減脂Fit").length;
+      const monthCardio = monthLogs.filter(l => l.trainingType === "有氧").length;
       const totalVol = logs.reduce((s, l) => {
         if (!l.exercises) return s;
         return s + Object.values(l.exercises).reduce((ss, ex) =>
@@ -1010,11 +1013,25 @@
                   </div>
                 </div>
 
-                <Card style={{ marginBottom: 16, padding: "20px 10px" }}>
-                  <div style={{ display: "flex", justifyContent: "space-around" }}>
+                <Card style={{ marginBottom: 16, padding: "16px 10px" }}>
+                  <div style={{ display: "flex", justifyContent: "space-around", marginBottom: 14 }}>
                     <StatRing value={weekLogs.length} max={7} label="本週訓練" sub="次" color={T.accent} />
-                    <StatRing value={monthLogs.length} max={30} label="本月訓練" sub="次" color={T.blue} />
+                    <StatRing value={monthLogs.length} max={30} label="本月訓練" sub="次" color={T.pink} />
                     <StatRing value={logs.length} max={Math.max(logs.length, 30)} label="總紀錄" sub="筆" color={T.green} />
+                  </div>
+                  <div style={{ display: "flex", gap: 8 }}>
+                    <div style={{ flex: 1, padding: "10px 8px", borderRadius: 10, background: "#efe5f5", textAlign: "center" }}>
+                      <div style={{ fontSize: 20, fontWeight: 800, color: "#8260a2" }}>{monthWeight}</div>
+                      <div style={{ fontSize: 10, color: T.text3, marginTop: 2 }}>💪 本月重訓</div>
+                    </div>
+                    <div style={{ flex: 1, padding: "10px 8px", borderRadius: 10, background: "#f8e8f0", textAlign: "center" }}>
+                      <div style={{ fontSize: 20, fontWeight: 800, color: "#c27ba0" }}>{monthFit}</div>
+                      <div style={{ fontSize: 10, color: T.text3, marginTop: 2 }}>🔥 本月減脂</div>
+                    </div>
+                    <div style={{ flex: 1, padding: "10px 8px", borderRadius: 10, background: "#f8f0db", textAlign: "center" }}>
+                      <div style={{ fontSize: 20, fontWeight: 800, color: "#c9a84c" }}>{monthCardio}</div>
+                      <div style={{ fontSize: 10, color: T.text3, marginTop: 2 }}>🏃 本月有氧</div>
+                    </div>
                   </div>
                 </Card>
 
@@ -1464,6 +1481,60 @@
                   預設標籤（健身工廠、BYF、自主、與大皮、跑步...等）無法刪除<br/>
                   只能管理你自己新增的自訂項目
                 </div>
+
+                <div style={{ height: 1, background: T.sep, margin: "24px 0" }} />
+
+                <SectionLabel>📤 匯出資料</SectionLabel>
+                <Card style={{ marginBottom: 10, padding: 14 }}>
+                  <div style={{ fontSize: 13, color: T.text2, lineHeight: 1.7, marginBottom: 14 }}>
+                    匯出全部訓練紀錄為 CSV 檔案，可用 Excel / Google Sheets 開啟進行自訂統計分析。
+                  </div>
+                  <button onClick={() => {
+                    // Build CSV
+                    const headers = ["日期", "時間", "訓練類型", "部位", "地點", "夥伴", "動作", "組數", "重量", "單位", "次數", "有氧類型", "有氧時間(分)", "有氧卡路里", "體重(kg)", "體脂率(%)", "肌肉量(kg)", "備註"];
+                    const rows = [headers.join(",")];
+                    logs.forEach(log => {
+                      const base = [log.date, log.time, log.trainingType, log.muscleGroup || "", log.location || "", log.partner || ""];
+                      const body = [log.body?.weight || "", log.body?.fat || "", log.body?.muscle || ""];
+                      const note = (log.notes || "").replace(/,/g, "，").replace(/\n/g, " ");
+                      if (log.exercises && Object.keys(log.exercises).length > 0) {
+                        Object.entries(log.exercises).forEach(([exName, ex]) => {
+                          if (ex.sets && ex.sets.length > 0) {
+                            ex.sets.forEach((set, i) => {
+                              rows.push([...base, exName, i + 1, set.weight || "", ex.unit || "kg", set.reps || "", "", "", "", ...body, i === 0 ? note : ""].join(","));
+                            });
+                          } else {
+                            rows.push([...base, exName, 1, "", "kg", "", "", "", "", ...body, note].join(","));
+                          }
+                        });
+                      } else if (log.cardio) {
+                        rows.push([...base, "", "", "", "", "", log.cardio.type || "", log.cardio.duration || "", log.cardio.calories || "", ...body, note].join(","));
+                      } else {
+                        rows.push([...base, "", "", "", "", "", "", "", "", ...body, note].join(","));
+                      }
+                    });
+                    const csv = "\uFEFF" + rows.join("\n"); // BOM for Excel
+                    const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement("a");
+                    a.href = url;
+                    a.download = `SummerGym_${todayStr()}.csv`;
+                    a.click();
+                    URL.revokeObjectURL(url);
+                  }} style={{
+                    width: "100%", padding: "14px", borderRadius: 12,
+                    border: "none", cursor: "pointer", fontFamily: T.font,
+                    background: `linear-gradient(135deg, ${T.accent}, #c097cf)`,
+                    color: "#fff", fontSize: 15, fontWeight: 700,
+                    boxShadow: `0 4px 16px ${T.accent}40`,
+                    display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+                  }}>
+                    <span>📥</span> 匯出 CSV（共 {logs.length} 筆紀錄）
+                  </button>
+                  <div style={{ fontSize: 11, color: T.text4, textAlign: "center", marginTop: 8 }}>
+                    檔案名稱：SummerGym_{todayStr()}.csv
+                  </div>
+                </Card>
               </div>
             )}
 
